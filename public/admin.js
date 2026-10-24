@@ -59,6 +59,7 @@ function render(next) {
   renderPollsAdmin();
   renderLeaderboardAdmin();
   tournaments.update(state.tournaments);
+  renderAchievementsAdmin();
   // Einstellungen nur befüllen, wenn gerade niemand darin tippt.
   const form = $('settingsForm');
   if (!form.contains(document.activeElement)) {
@@ -141,7 +142,7 @@ $('tabs').addEventListener('click', (e) => {
   if (!btn) return;
   for (const b of $('tabs').querySelectorAll('button')) b.classList.toggle('active', b === btn);
   for (const v of document.querySelectorAll('.view')) v.hidden = v.id !== 'view-' + btn.dataset.view;
-  if (btn.dataset.view === 'users') loadUsers();
+  if (btn.dataset.view === 'users' || btn.dataset.view === 'achievements') loadUsers();
   if (btn.dataset.view === 'leaderboard') {
     loadUsers();
     loadScoreHistory();
@@ -198,6 +199,7 @@ async function loadUsers() {
   renderLeaderboardAdmin();
   renderTournamentUsers();
   renderTournamentActions(tournaments.selected());
+  renderAchievementsAdmin();
 }
 
 $('userForm').addEventListener('submit', async (e) => {
@@ -566,6 +568,76 @@ $('tournamentActions').addEventListener('change', (e) => {
 $('tournamentAdmin').addEventListener('click', (e) => {
   const btn = e.target.closest('[data-t-remove]');
   if (btn) api('DELETE', `tournaments/${tournaments.selected().id}/participants/${btn.dataset.tRemove}`);
+});
+
+// --- Achievements ------------------------------------------------------------
+
+function renderAchievementsAdmin() {
+  if (!state) return;
+  const a = state.achievements;
+  // Auswahl nur neu aufbauen, wenn sich etwas geändert hat, sonst springt sie zurück.
+  const userOptions = users.map((u) => `<option value="${esc(u.id)}">${esc(u.username)}</option>`).join('');
+  if ($('awardUser').dataset.html !== userOptions) {
+    const keep = $('awardUser').value;
+    $('awardUser').innerHTML = userOptions || '<option value="">Noch keine Nutzer</option>';
+    $('awardUser').dataset.html = userOptions;
+    if (keep) $('awardUser').value = keep;
+  }
+  const manualFirst = [...a.defs].sort((x, y) => Number(y.manual) - Number(x.manual));
+  const achOptions = manualFirst.map((d) => `<option value="${esc(d.id)}">${esc(d.icon)} ${esc(d.name)}${d.manual ? '' : ' (automatisch)'}</option>`).join('');
+  if ($('awardAch').dataset.html !== achOptions) {
+    const keep = $('awardAch').value;
+    $('awardAch').innerHTML = achOptions;
+    $('awardAch').dataset.html = achOptions;
+    if (keep) $('awardAch').value = keep;
+  }
+  if (!$('customRarity').options.length) {
+    $('customRarity').innerHTML = Object.entries(a.rarities).map(([key, r]) => `<option value="${key}">${esc(r.label)} (${r.points} Punkte)</option>`).join('');
+  }
+
+  $('achAdminRanking').innerHTML = a.ranking.length
+    ? a.ranking.map((r, i) => `<li><span class="rank">${i + 1}</span><span class="name">${esc(r.username)} <small>${r.count} 🏅</small></span><span class="points">${r.points}</span></li>`).join('')
+    : '<li class="empty">Noch niemand hat ein Achievement</li>';
+
+  $('achAdminList').innerHTML = a.defs.map((d) => {
+    const holders = a.unlocks.filter((u) => u.achId === d.id);
+    return `<li style="--rarity:${RARITY_COLORS[d.rarity]}">
+      <div class="ach-admin-head">
+        <span class="ach-feed-icon">${esc(d.icon)}</span>
+        <strong>${esc(d.name)}</strong>
+        <small class="ach-rarity">${esc(a.rarities[d.rarity].label)} · ${d.points}</small>
+        <small>${d.custom ? 'eigenes' : d.manual ? 'von Hand' : 'automatisch'}</small>
+        ${d.custom ? `<button type="button" class="icon danger" data-ach-action="delete-def" data-id="${esc(d.id)}" title="Achievement löschen">✕</button>` : ''}
+      </div>
+      <p class="muted">${esc(d.description)}</p>
+      ${holders.length ? `<div class="chips">${holders.map((h) => `<span class="chip">${esc(h.username)}<button type="button" data-ach-action="revoke" data-id="${esc(h.id)}" title="Wieder wegnehmen">✕</button></span>`).join('')}</div>` : ''}
+    </li>`;
+  }).join('');
+}
+
+$('awardForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const res = await fetch('/api/admin/achievements/award', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...authHeaders() },
+    body: JSON.stringify(formData(e.target)),
+  });
+  const data = await res.json().catch(() => ({}));
+  $('awardError').textContent = res.ok ? '' : data.error || 'Fehler';
+});
+
+$('customAchForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  await api('POST', 'achievements/defs', formData(e.target));
+  e.target.reset();
+});
+
+$('achAdminList').addEventListener('click', (e) => {
+  const btn = e.target.closest('button[data-ach-action]');
+  if (!btn) return;
+  const { achAction, id } = btn.dataset;
+  if (achAction === 'revoke' && confirm('Achievement wieder wegnehmen?')) api('DELETE', `achievements/unlocks/${id}`);
+  if (achAction === 'delete-def' && confirm('Eigenes Achievement löschen? Es verschwindet auch bei allen, die es haben.')) api('DELETE', `achievements/defs/${id}`);
 });
 
 // Beim Laden: gespeichertes Passwort oder Admin-Nutzer-Cookie prüfen.

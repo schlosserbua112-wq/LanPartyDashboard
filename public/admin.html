@@ -32,6 +32,7 @@
       <button type="button" data-view="polls">Abstimmungen</button>
       <button type="button" data-view="leaderboard">Leaderboard</button>
       <button type="button" data-view="tournaments">Turniere</button>
+      <button type="button" data-view="achievements">Achievements</button>
       <button type="button" data-view="users">Nutzer</button>
     </nav>
 
@@ -204,6 +205,44 @@
       </section>
     </div>
 
+    <div class="view ach-admin-layout" id="view-achievements" hidden>
+      <div class="stack-col">
+        <section class="card">
+          <h2>Achievement vergeben</h2>
+          <form id="awardForm" class="stack">
+            <label>Nutzer <select name="userId" id="awardUser" required></select></label>
+            <label>Achievement <select name="achId" id="awardAch" required></select></label>
+            <button>Vergeben 🏅</button>
+            <p class="error" id="awardError"></p>
+          </form>
+          <p class="muted">Die meisten Achievements schalten sich beim Mitmachen von selbst frei. Die übrigen vergibst du hier, z.B. nach einem Match. Die Anzeige feiert jede Freischaltung mit Popup und Sound.</p>
+        </section>
+
+        <section class="card">
+          <h2>Eigenes Achievement</h2>
+          <form id="customAchForm" class="stack">
+            <div class="row">
+              <input name="icon" class="short" maxlength="4" placeholder="🏅" aria-label="Symbol (Emoji)">
+              <input name="name" maxlength="40" required placeholder="Name, z.B. Headshot-Maschine">
+            </div>
+            <label>Beschreibung <input name="description" maxlength="120" placeholder="Wofür gibt es das?"></label>
+            <label>Seltenheit <select name="rarity" id="customRarity"></select></label>
+            <button>Anlegen</button>
+          </form>
+        </section>
+
+        <section class="card">
+          <h2>Ranking</h2>
+          <ol class="leaderboard" id="achAdminRanking"></ol>
+        </section>
+      </div>
+
+      <section class="card">
+        <h2>Alle Achievements</h2>
+        <ul class="ach-admin-list" id="achAdminList"></ul>
+      </section>
+    </div>
+
     <div class="view" id="view-users" hidden>
       <section class="card">
         <h2>Nutzer anlegen</h2>
@@ -226,6 +265,7 @@
   <script src="/common.js"></script>
   <script src="/wheel.js"></script>
   <script src="/tournament.js"></script>
+  <script src="/achievements.js"></script>
   <script src="/admin.js"></script>
 </body>
 </html>

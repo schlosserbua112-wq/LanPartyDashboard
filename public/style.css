@@ -795,3 +795,201 @@ textarea { resize: vertical; }
 .display:not(.user-mode) .t-tabs { margin-bottom: 0.2rem; }
 .display:not(.user-mode) .t-champion { padding: 0.2rem 0.8rem; }
 .display:not(.user-mode) .trophy { font-size: 1.5em; }
+
+/* ------------------------------------------------------- Achievements */
+
+.user-mode .grid {
+  grid-template-areas:
+    "wheel wheel schedule"
+    "wheel wheel leaderboard"
+    "votes features servers"
+    "achievements achievements achievements";
+}
+.user-mode.no-features .grid {
+  grid-template-areas:
+    "wheel wheel schedule"
+    "wheel wheel leaderboard"
+    "votes servers servers"
+    "achievements achievements achievements";
+}
+#achievementsCard { grid-area: achievements; }
+.ach-card h2 { display: flex; align-items: baseline; gap: 0.5rem; }
+.sound-toggle { margin-left: auto; font-size: 1rem; line-height: 1; }
+.ach-body { display: grid; grid-template-columns: minmax(0, 3fr) minmax(240px, 1fr); gap: 1.5rem; }
+.ach-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 0.7rem; }
+
+.ach-tile {
+  position: relative;
+  display: grid;
+  justify-items: center;
+  align-content: start;
+  gap: 0.3rem;
+  padding: 0.8rem 0.5rem 0.7rem;
+  text-align: center;
+  border-radius: 12px;
+  background: var(--card-2);
+  border: 2px solid var(--line);
+  overflow: hidden;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+.ach-tile strong { font-size: 0.9em; line-height: 1.2; }
+.ach-tile small { font-size: 0.75em; }
+.ach-tile-icon { font-size: 2.2em; line-height: 1.1; }
+.ach-tile.unlocked { border-color: var(--rarity); box-shadow: 0 0 14px -4px var(--rarity), inset 0 0 18px -10px var(--rarity); }
+.ach-tile.unlocked:hover { transform: translateY(-3px) scale(1.03); box-shadow: 0 6px 22px -4px var(--rarity); }
+.ach-tile.unlocked strong { color: var(--rarity); }
+/* Glanz, der regelmäßig über freigeschaltete Kacheln läuft */
+.ach-tile.unlocked::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(115deg, transparent 30%, rgba(255, 255, 255, 0.22) 50%, transparent 70%);
+  transform: translateX(-120%);
+  animation: ach-shine 6s ease-in-out infinite;
+  pointer-events: none;
+}
+.ach-tile.unlocked.rarity-legendary .ach-tile-icon { animation: ach-float 3s ease-in-out infinite; }
+.ach-tile.locked { opacity: 0.55; }
+.ach-tile.locked .ach-tile-icon { filter: grayscale(1) brightness(0.6); }
+.ach-progress { width: 80%; height: 0.4em; border-radius: 99px; background: var(--bg); overflow: hidden; }
+.ach-progress span { display: block; height: 100%; background: var(--rarity); transition: width 0.6s ease; }
+
+.ach-side { display: flex; flex-direction: column; gap: 0.4rem; min-width: 0; }
+.ach-side .side-title:first-child { margin-top: 0; }
+.ach-ranking li.me .name { color: var(--accent); font-weight: 600; }
+.ach-feed li { display: flex; align-items: center; gap: 0.5rem; padding: 0.3rem 0; border-top: 1px solid var(--line); font-size: 0.9em; }
+.ach-feed li:first-child { border-top: none; }
+.ach-feed-icon { width: 1.8em; height: 1.8em; display: grid; place-items: center; border-radius: 50%; border: 2px solid var(--rarity); flex: none; }
+
+@media (max-width: 1000px) {
+  .user-mode .grid, .user-mode.no-features .grid {
+    grid-template-areas: "wheel" "schedule" "leaderboard" "votes" "features" "achievements" "servers";
+  }
+  .ach-body { grid-template-columns: 1fr; }
+}
+
+/* Großes Freischalt-Popup */
+.ach-stage { position: fixed; inset: 0; display: grid; place-items: start center; padding-top: 9vh; pointer-events: none; z-index: 30; }
+.ach-popup {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 1.4rem;
+  min-width: min(560px, 92vw);
+  max-width: 92vw;
+  padding: 1.4rem 2rem 1.4rem 1.4rem;
+  border-radius: 20px;
+  background: linear-gradient(135deg, rgba(20, 26, 43, 0.97), rgba(28, 36, 64, 0.97));
+  border: 2px solid var(--rarity);
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.4), 0 0 50px -6px var(--rarity), 0 20px 60px rgba(0, 0, 0, 0.6);
+  overflow: hidden;
+  animation: ach-in 0.7s cubic-bezier(0.2, 1.4, 0.4, 1) both;
+}
+.ach-popup { font-size: 1.15em; }
+.display:not(.user-mode) .ach-popup { font-size: 1.35em; }
+.ach-popup.leaving { animation: ach-out 0.5s ease-in both; }
+.ach-popup::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(115deg, transparent 35%, rgba(255, 255, 255, 0.25) 50%, transparent 65%);
+  animation: ach-sweep 1.4s 0.5s ease-out both;
+  pointer-events: none;
+}
+.ach-rays {
+  position: absolute;
+  left: 3.4rem;
+  top: 50%;
+  width: 16rem;
+  height: 16rem;
+  margin: -8rem 0 0 -8rem;
+  background: repeating-conic-gradient(from 0deg, color-mix(in srgb, var(--rarity) 35%, transparent) 0deg 10deg, transparent 10deg 30deg);
+  border-radius: 50%;
+  mask-image: radial-gradient(circle, #000 20%, transparent 70%);
+  -webkit-mask-image: radial-gradient(circle, #000 20%, transparent 70%);
+  animation: ach-spin 8s linear infinite;
+  opacity: 0.8;
+}
+.ach-icon {
+  position: relative;
+  flex: none;
+  width: 4.2rem;
+  height: 4.2rem;
+  display: grid;
+  place-items: center;
+  font-size: 2.6rem;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 30%, rgba(255, 255, 255, 0.25), var(--card-2));
+  border: 3px solid var(--rarity);
+  box-shadow: 0 0 24px var(--rarity);
+  animation: ach-pop 0.9s 0.25s cubic-bezier(0.2, 1.6, 0.4, 1) both;
+}
+.ach-text { position: relative; display: grid; gap: 0.15rem; }
+.ach-text small { color: var(--rarity); text-transform: uppercase; letter-spacing: 0.14em; font-weight: 700; font-size: 0.75em; }
+.ach-text strong { font-size: 1.6em; line-height: 1.15; }
+.ach-text p { margin: 0; color: var(--muted); }
+.ach-meta { font-size: 0.8em; color: var(--muted); margin-top: 0.2rem; }
+.rarity-legendary .ach-text strong {
+  background: linear-gradient(90deg, #ffc857, #fff3c4, #ffc857);
+  background-size: 200% auto;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: ach-gold 2s linear infinite;
+}
+
+/* Kleine Hinweise, wenn andere etwas freischalten */
+.ach-toasts { position: fixed; right: 1rem; bottom: 3.5rem; display: grid; gap: 0.5rem; z-index: 25; pointer-events: none; }
+.ach-toast {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.6rem 1rem 0.6rem 0.6rem;
+  border-radius: 12px;
+  background: var(--card);
+  border: 1px solid var(--rarity);
+  box-shadow: 0 0 18px -6px var(--rarity), 0 8px 24px rgba(0, 0, 0, 0.5);
+  animation: ach-toast-in 0.45s cubic-bezier(0.2, 1.3, 0.4, 1) both;
+}
+.ach-toast.leaving { animation: ach-toast-out 0.5s ease-in both; }
+.ach-toast-icon { font-size: 1.5em; }
+
+.confetti { position: fixed; inset: 0; width: 100vw; height: 100vh; pointer-events: none; z-index: 29; }
+
+@keyframes ach-in { from { opacity: 0; transform: translateY(-60px) scale(0.6); } to { opacity: 1; transform: none; } }
+@keyframes ach-out { to { opacity: 0; transform: translateY(-30px) scale(0.9); } }
+@keyframes ach-pop { from { transform: scale(0) rotate(-200deg); } to { transform: none; } }
+@keyframes ach-sweep { from { transform: translateX(-100%); } to { transform: translateX(100%); } }
+@keyframes ach-spin { to { transform: rotate(360deg); } }
+@keyframes ach-gold { to { background-position: 200% center; } }
+@keyframes ach-shine { 0%, 75% { transform: translateX(-120%); } 90%, 100% { transform: translateX(120%); } }
+@keyframes ach-float { 50% { transform: translateY(-4px) scale(1.08); } }
+@keyframes ach-toast-in { from { opacity: 0; transform: translateX(120%); } to { opacity: 1; transform: none; } }
+@keyframes ach-toast-out { to { opacity: 0; transform: translateX(120%); } }
+
+@media (prefers-reduced-motion: reduce) {
+  .ach-popup, .ach-popup::after, .ach-icon, .ach-rays, .ach-tile::after, .ach-tile-icon, .ach-toast { animation: none !important; }
+}
+
+/* Achievements im Admin */
+select {
+  font: inherit;
+  color: inherit;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  padding: 0.55rem 0.8rem;
+  background: var(--card-2);
+}
+.ach-admin-layout { grid-template-columns: minmax(320px, 1fr) minmax(0, 1.6fr); align-items: start; }
+.stack-col { display: grid; gap: 1rem; align-content: start; }
+.ach-admin-list > li { border-top: 1px solid var(--line); padding: 0.7rem 0; display: grid; gap: 0.4rem; }
+.ach-admin-list > li:first-child { border-top: none; padding-top: 0; }
+.ach-admin-list p { margin: 0; font-size: 0.9em; }
+.ach-admin-head { display: flex; align-items: center; flex-wrap: wrap; gap: 0.6rem; }
+.ach-admin-head .danger { margin-left: auto; }
+.ach-rarity { color: var(--rarity) !important; font-weight: 600; }
+.chips { display: flex; flex-wrap: wrap; gap: 0.4rem; }
+.chip { display: inline-flex; align-items: center; gap: 0.3rem; padding: 0.15rem 0.3rem 0.15rem 0.7rem; border-radius: 99px; background: var(--card-2); border: 1px solid var(--rarity); font-size: 0.85em; }
+.chip button { padding: 0 0.35rem; background: none; color: var(--muted); font-size: 0.85em; }
+.chip button:hover { color: var(--bad); }
+@media (max-width: 900px) { .ach-admin-layout { grid-template-columns: 1fr; } }
