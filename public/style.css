@@ -436,3 +436,146 @@ textarea { resize: vertical; }
 .poll-head .badge { margin-left: 0; }
 .poll-admin-list .toggle-row .danger { margin-left: auto; }
 @media (max-width: 900px) { .polls-layout { grid-template-columns: 1fr; } }
+
+/* ------------------------------------------------------- Spiele-Matrix */
+
+.steam-card { grid-column: 1 / -1; display: grid; gap: 0.7rem; align-content: start; }
+.steam-card h2 { margin-bottom: 0; }
+.steam-card .error:empty, .steam-card .empty:empty { display: none; }
+.steam-card .row { margin-bottom: 0; }
+.steam-card.loading h2::after {
+  content: "⟳";
+  display: inline-block;
+  margin-left: 0.6rem;
+  animation: steam-spin 0.8s linear infinite;
+}
+.steam-me { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem 0.8rem; margin: 0; }
+.steam-me span { margin-right: auto; }
+
+.steam-chips { display: flex; flex-wrap: wrap; gap: 0.6rem; margin-top: 0.4rem; }
+.steam-chips li {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.3rem 0.8rem 0.3rem 0.3rem;
+  border-radius: 10px;
+  background: var(--card-2);
+  border: 1px solid var(--line);
+  animation: steam-pop-in 0.45s cubic-bezier(.2, 1.4, .4, 1) both;
+  animation-delay: calc(var(--i, 0) * 60ms);
+}
+.steam-chips img { height: 2.4em; border-radius: 6px; }
+.steam-chips b { font-size: 0.7em; padding: 0.1rem 0.4rem; border-radius: 99px; background: var(--ok); color: var(--bg); }
+.steam-chips li.ready {
+  border-color: transparent;
+  background: linear-gradient(var(--card-2), var(--card-2)) padding-box,
+    linear-gradient(90deg, var(--accent), var(--accent-2), var(--ok), var(--accent)) border-box;
+  background-size: 100% 100%, 300% 100%;
+  animation: steam-pop-in 0.45s cubic-bezier(.2, 1.4, .4, 1) both, steam-shimmer 4s linear infinite;
+  animation-delay: calc(var(--i, 0) * 60ms), 0s;
+}
+
+.steam-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 0.6rem 1rem; }
+.steam-toolbar input { flex: 0 1 18em; }
+.steam-filters { display: inline-flex; padding: 3px; border-radius: 99px; background: var(--bg); border: 1px solid var(--line); }
+.steam-filters button { background: none; color: var(--muted); border-radius: 99px; padding: 0.35rem 0.9rem; font-size: 0.9em; transition: background 0.2s, color 0.2s; }
+.steam-filters button.active { background: var(--accent); color: var(--bg); }
+.steam-legend { display: inline-flex; align-items: center; gap: 0.4rem; color: var(--muted); font-size: 0.85em; margin-left: auto; }
+.steam-legend .cell { display: inline-grid; width: 1.6em; height: 1.6em; margin-left: 0.6rem; }
+
+.steam-table-wrap { overflow: auto; max-height: 70vh; border: 1px solid var(--line); border-radius: 10px; }
+.steam-matrix { border-collapse: separate; border-spacing: 0; width: 100%; }
+.steam-matrix th, .steam-matrix td { padding: 0.3rem 0.4rem; border-bottom: 1px solid var(--line); }
+.steam-matrix thead th {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: var(--card);
+  vertical-align: bottom;
+  font-weight: 600;
+  font-size: 0.85em;
+}
+.steam-matrix .game-col {
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  background: var(--card);
+  text-align: left;
+  font-weight: normal;
+  min-width: 14em;
+  max-width: 22em;
+}
+.steam-matrix thead .game-col { z-index: 3; color: var(--muted); }
+.steam-matrix .game-name { display: flex; align-items: center; gap: 0.6rem; }
+.steam-matrix .game-name span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.steam-matrix tbody .game-col img, .icon-fallback { width: 1.8em; height: 1.8em; border-radius: 4px; flex: none; display: grid; place-items: center; }
+.steam-matrix tbody tr { transition: background 0.2s; }
+.steam-matrix tbody tr:hover, .steam-matrix tbody tr:hover .game-col { background: var(--card-2); }
+.steam-matrix tr.everyone .game-col span { color: var(--accent); font-weight: 600; }
+.steam-matrix tr.playing .game-col { box-shadow: inset 3px 0 0 var(--ok); }
+.steam-matrix tr.enter { animation: steam-row-in 0.4s ease-out both; animation-delay: calc(var(--i, 0) * 18ms); }
+
+.player-col { min-width: 5.5em; text-align: center; }
+.player-col img, .avatar-fallback {
+  display: block;
+  width: 2.2em;
+  height: 2.2em;
+  margin: 0 auto 0.25rem;
+  border-radius: 50%;
+  border: 2px solid var(--line);
+  object-fit: cover;
+}
+.avatar-fallback { display: grid; place-items: center; background: var(--card-2); }
+.player-col.me .pname { color: var(--accent); }
+.player-col.me img, .player-col.me .avatar-fallback { border-color: var(--accent); }
+.player-col.is-playing img, .player-col.is-playing .avatar-fallback { border-color: var(--ok); animation: steam-glow 1.6s ease-in-out infinite; }
+.player-col .pname { display: block; }
+.player-col .now { display: block; max-width: 8em; margin: 0 auto; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--ok); font-weight: normal; font-size: 0.85em; }
+.player-col .warn { color: var(--warn); }
+
+.cell { text-align: center; }
+.cell > span, .cell > button {
+  display: inline-grid;
+  place-items: center;
+  width: 1.9em;
+  height: 1.9em;
+  border-radius: 50%;
+  padding: 0;
+  font-size: 0.9em;
+  line-height: 1;
+}
+.cell.none > span { color: var(--line); }
+.cell.own > span, .cell.own > button { color: var(--muted); border: 1px solid var(--line); background: transparent; }
+.cell.inst > span, .cell.inst > button { color: var(--bg); background: var(--accent); font-weight: 700; }
+.cell.play > span, .cell.play > button { color: var(--bg); background: var(--ok); animation: steam-pulse 1.4s ease-in-out infinite; }
+.cell > button { cursor: pointer; transition: transform 0.15s; }
+.cell > button:hover { transform: scale(1.2); outline: 2px solid var(--accent); outline-offset: 1px; }
+.cell.pop > button { animation: steam-pop 0.4s cubic-bezier(.2, 1.6, .4, 1); }
+
+.count-col { white-space: nowrap; font-variant-numeric: tabular-nums; text-align: left; min-width: 7em; }
+.steam-matrix thead .count-col { color: var(--muted); }
+.ratio { display: inline-block; width: 2.5em; height: 0.45em; margin-right: 0.4rem; border-radius: 99px; background: var(--card-2); overflow: hidden; vertical-align: middle; }
+.ratio span { display: block; height: 100%; background: linear-gradient(90deg, var(--accent), var(--accent-2)); transition: width 0.6s ease; }
+.launch a { font-size: 0.85em; font-weight: 600; text-decoration: none; white-space: nowrap; }
+.launch a:hover { text-decoration: underline; }
+#steamMore { justify-self: center; }
+.steam-note { margin: 0; font-size: 0.85em; }
+
+@keyframes steam-spin { to { transform: rotate(360deg); } }
+@keyframes steam-row-in { from { opacity: 0; transform: translateX(-12px); } to { opacity: 1; transform: none; } }
+@keyframes steam-pop-in { from { opacity: 0; transform: scale(0.6); } to { opacity: 1; transform: none; } }
+@keyframes steam-pop { 0% { transform: scale(0.6); } 60% { transform: scale(1.35); } 100% { transform: scale(1); } }
+@keyframes steam-pulse { 0%, 100% { box-shadow: 0 0 0 0 rgba(61, 220, 132, 0.6); } 50% { box-shadow: 0 0 0 6px rgba(61, 220, 132, 0); } }
+@keyframes steam-glow { 0%, 100% { box-shadow: 0 0 4px var(--ok); } 50% { box-shadow: 0 0 14px var(--ok); } }
+@keyframes steam-shimmer { to { background-position: 0 0, 300% 0; } }
+
+@media (prefers-reduced-motion: reduce) {
+  .steam-card *, .steam-card.loading h2::after { animation: none !important; transition: none !important; }
+}
+
+/* Admin: Steam-Reiter */
+.steam-admin-list li { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem 0.8rem; padding: 0.6rem 0; border-top: 1px solid var(--line); }
+.steam-admin-list li > strong { min-width: 8em; }
+.steam-admin-list input { flex: 1 1 18em; }
+.steam-admin-list .status { flex-basis: 100%; font-size: 0.85em; }

@@ -30,6 +30,7 @@
       <button type="button" data-view="dashboard" class="active">Dashboard</button>
       <button type="button" data-view="wheel">Glücksrad</button>
       <button type="button" data-view="polls">Abstimmungen</button>
+      <button type="button" data-view="steam">Steam</button>
       <button type="button" data-view="users">Nutzer</button>
     </nav>
 
@@ -131,6 +132,25 @@
       <section class="card">
         <h2>Abstimmungen</h2>
         <ul class="poll-admin-list" id="pollList"></ul>
+      </section>
+    </div>
+
+    <div class="view" id="view-steam" hidden>
+      <section class="card">
+        <h2>Steam-API-Schlüssel</h2>
+        <p class="muted">Den Schlüssel bekommst du kostenlos unter <a href="https://steamcommunity.com/dev/apikey" target="_blank" rel="noopener">steamcommunity.com/dev/apikey</a> (als Domain einfach „lanparty“ eintragen). Er bleibt auf dem Pi und wird nie an Browser geschickt.</p>
+        <form id="steamKeyForm" class="row">
+          <input name="apiKey" type="password" autocomplete="off" placeholder="Steam-Web-API-Schlüssel">
+          <button>Speichern</button>
+          <button type="button" class="secondary" id="steamRefreshAll">Alle Spielelisten neu laden</button>
+        </form>
+        <p class="muted" id="steamKeyStatus"></p>
+      </section>
+
+      <section class="card">
+        <h2>Steam-Profile der Nutzer</h2>
+        <p class="muted">Nutzer mit dem Feature „Spiele-Matrix“ können ihr Profil auch selbst im Dashboard verknüpfen. Eintragen kannst du einen Profil-Link, den Namen aus der Profil-URL oder die SteamID64. Feld leeren und speichern trennt das Profil.</p>
+        <ul class="steam-admin-list" id="steamUsers"></ul>
       </section>
     </div>
 

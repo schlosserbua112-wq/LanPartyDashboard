@@ -68,6 +68,7 @@ function render(state) {
 
   renderPolls(state.polls);
   if (me && hasFeature('abstimmungen')) loadMyVotes();
+  if (me && hasFeature('spiele')) steamMatrix.onRev(state.steamRev);
 
   $('servers').innerHTML = state.servers.length
     ? state.servers.map((srv) => {
@@ -168,10 +169,11 @@ function enterUserMode(user) {
     });
   }
   // Das Glücksrad ist schon im Dashboard; die übrigen Features sind Platzhalter.
-  const others = me.features.filter((f) => f.enabled && f.key !== 'gluecksrad' && f.key !== 'abstimmungen');
+  const others = me.features.filter((f) => f.enabled && !['gluecksrad', 'abstimmungen', 'spiele'].includes(f.key));
   $('featuresCard').hidden = !others.length;
   document.body.classList.toggle('no-features', !others.length);
   $('features').innerHTML = others.map((f) => `<li><strong>${esc(f.label)}</strong><small>kommt bald</small></li>`).join('');
+  if (hasFeature('spiele')) steamMatrix.start();
   if (current) render(current);
 }
 

@@ -68,6 +68,28 @@
       <h2>Server</h2>
       <ul class="servers" id="servers"></ul>
     </section>
+
+    <!-- Nur für Nutzer mit dem Feature „Spiele-Matrix“ -->
+    <section class="card steam-card" id="steamCard" hidden>
+      <h2>Spiele-Matrix <small id="steamCount"></small></h2>
+      <div id="steamLink"></div>
+      <p class="error" id="steamError"></p>
+      <div id="steamCommon" hidden></div>
+      <div class="steam-toolbar">
+        <input type="search" id="steamSearch" placeholder="Spiel suchen…">
+        <div class="steam-filters" id="steamFilters">
+          <button type="button" data-filter="shared" class="active">Mindestens 2</button>
+          <button type="button" data-filter="everyone">Alle haben es</button>
+          <button type="button" data-filter="all">Alle Spiele</button>
+        </div>
+        <span class="steam-legend"><span class="cell play"><span>▶</span></span> spielt gerade <span class="cell inst"><span>✓</span></span> installiert <span class="cell own"><span>○</span></span> besitzt es</span>
+        <button type="button" class="icon" id="steamMute" title="Soundeffekte an/aus">🔊</button>
+      </div>
+      <div class="steam-table-wrap"><table class="steam-matrix" id="steamMatrix"></table></div>
+      <p class="empty" id="steamEmpty"></p>
+      <button type="button" class="secondary" id="steamMore" hidden></button>
+      <p class="muted steam-note">Steam verrät nur, wer ein Spiel besitzt und was gerade läuft. Ob es installiert ist, hakt jeder in seiner eigenen Spalte selbst an. <span id="steamUnlinked"></span></p>
+    </section>
   </main>
 
   <p class="toast" id="toast" hidden></p>
@@ -77,5 +99,6 @@
   <script src="/common.js"></script>
   <script src="/wheel.js"></script>
   <script src="/display.js"></script>
+  <script src="/steam.js"></script>
 </body>
 </html>

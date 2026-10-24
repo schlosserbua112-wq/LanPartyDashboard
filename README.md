@@ -12,13 +12,21 @@ Ein schlankes Dashboard für LAN-Partys, gebaut für den Raspberry Pi. Ein Bilds
 Im Admin-Bereich gibt es den Reiter **Nutzer**. Dort legst du Nutzer mit Nutzernamen an und schickst ihnen ihren persönlichen Link (`/login?token=…`). Wer den Link öffnet, ist auf diesem Gerät angemeldet und sieht im Dashboard seine Features.
 
 - **Admin**: Nutzer mit Admin-Haken kommen ohne Passwort in `/admin`. Das Master-Passwort aus `ADMIN_PASSWORD` funktioniert weiterhin.
-- **Features**: Pro Nutzer schaltest du Glücksrad, Abstimmungen, Essensbestellung und Wishlist frei. Essensbestellung und Wishlist sind noch Platzhalter.
+- **Features**: Pro Nutzer schaltest du Glücksrad, Abstimmungen, Spiele-Matrix, Essensbestellung und Wishlist frei. Essensbestellung und Wishlist sind noch Platzhalter.
 
 ## Abstimmungen
 
 - Im Admin-Reiter **Abstimmungen** legst du Umfragen mit Frage und Antworten an, beendest sie, öffnest sie wieder, setzt Stimmen zurück oder löschst sie.
 - Nutzer mit dem Feature „Abstimmungen“ stimmen direkt im Dashboard ab: eine Stimme pro Umfrage, änderbar solange sie läuft. Nochmal auf die eigene Antwort klicken zieht die Stimme zurück.
 - Die TV-Anzeige zeigt alle laufenden Umfragen und das Ergebnis der zuletzt beendeten. Wer wofür gestimmt hat, ist nicht öffentlich.
+
+## Spiele-Matrix (Steam)
+
+- Im Admin-Reiter **Steam** trägst du einmal einen kostenlosen Steam-Web-API-Schlüssel ein (https://steamcommunity.com/dev/apikey). Er bleibt auf dem Pi und geht nie an Browser. Alternativ per Umgebungsvariable `STEAM_API_KEY`.
+- Nutzer mit dem Feature „Spiele-Matrix“ verknüpfen im Dashboard ihr Steam-Profil (Profil-Link, Name aus der Profil-URL oder SteamID64). Der Admin kann das im Reiter **Steam** auch für alle erledigen. In Steam müssen unter *Profil → Privatsphäre* die „Spieldetails“ öffentlich sein.
+- Die Matrix zeigt pro Spiel, wer es besitzt, wer es gerade spielt und wer es installiert hat, dazu „Das können alle spielen“. Mit „Starten“ öffnet Steam das Spiel direkt (und installiert es, falls nötig).
+- **Einschränkung:** Steam verrät nur Besitz, Spielzeit und das gerade laufende Spiel, nicht, was installiert ist. „Installiert“ hakt deshalb jeder in seiner eigenen Spalte selbst an.
+- Spielelisten werden stündlich neu geladen, „spielt gerade“ jede Minute. Die letzte Liste bleibt gespeichert, falls das Internet ausfällt.
 
 ## Glücksrad
 
@@ -95,6 +103,8 @@ Bei der Docker-Variante den Pfad zu `kiosk.sh` entsprechend anpassen. Unter Wayl
 | `PORT` | `8080` | HTTP-Port |
 | `DATA_DIR` | `./data` | Ordner für `state.json` |
 | `SERVER_CHECK_INTERVAL` | `30` | Sekunden zwischen den Server-Checks |
+| `STEAM_API_KEY` | – | Steam-Web-API-Schlüssel (sonst im Admin-Reiter **Steam** eintragen) |
+| `STEAM_REFRESH_MINUTES` | `60` | Minuten zwischen dem Neuladen der Steam-Spielelisten |
 
 ## Hinweise
 

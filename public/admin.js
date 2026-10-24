@@ -150,6 +150,7 @@ $('tabs').addEventListener('click', (e) => {
   for (const b of $('tabs').querySelectorAll('button')) b.classList.toggle('active', b === btn);
   for (const v of document.querySelectorAll('.view')) v.hidden = v.id !== 'view-' + btn.dataset.view;
   if (btn.dataset.view === 'users') loadUsers();
+  if (btn.dataset.view === 'steam') loadSteam();
   if (btn.dataset.view === 'wheel') {
     loadUsers();
     if (state) wheel.update(state.wheel);
@@ -362,6 +363,54 @@ $('pollList').addEventListener('click', (e) => {
   if (action === 'toggle') api('PATCH', `polls/${id}`, { open: !poll.open });
   if (action === 'reset' && confirm(`Alle Stimmen für „${poll.question}“ zurücksetzen?`)) api('POST', `polls/${id}/reset`);
   if (action === 'delete' && confirm(`„${poll.question}“ löschen?`)) api('DELETE', `polls/${id}`);
+});
+
+// --- Steam -------------------------------------------------------------------
+
+async function loadSteam() {
+  const data = await api('GET', 'steam');
+  $('steamKeyStatus').textContent = data.keySource === 'env'
+    ? 'Der Schlüssel ist über die Umgebungsvariable STEAM_API_KEY gesetzt.'
+    : data.keySource ? 'Ein Schlüssel ist gespeichert. Leer speichern löscht ihn.' : 'Noch kein Schlüssel eingetragen.';
+  $('steamUsers').innerHTML = data.users.length
+    ? data.users.map((u) => {
+        const p = u.profile;
+        const status = !p ? '<span class="muted">nicht verknüpft</span>'
+          : `${esc(p.persona || p.steamId)} · ${p.gameCount} Spiele · ${p.fetchedAt ? 'aktualisiert ' + new Date(p.fetchedAt).toLocaleString('de-DE', { dateStyle: 'short', timeStyle: 'short' }) : 'noch nicht geladen'}${p.error ? ` · <span class="error">${esc(p.error)}</span>` : ''}`;
+        return `<li data-steam-user="${esc(u.id)}">
+          <strong>${esc(u.username)}</strong>
+          <input value="${esc(p ? p.steamId : '')}" placeholder="Steam-Profil-Link oder SteamID64">
+          <button type="button" data-steam-save>Speichern</button>
+          <span class="status">${status}</span>
+        </li>`;
+      }).join('')
+    : '<li class="empty">Noch keine Nutzer angelegt</li>';
+}
+
+$('steamKeyForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  await api('PUT', 'steam', { apiKey: e.target.elements.apiKey.value });
+  e.target.reset();
+  loadSteam();
+});
+
+$('steamRefreshAll').addEventListener('click', async (e) => {
+  e.target.disabled = true;
+  try { await api('POST', 'steam/refresh'); } finally { e.target.disabled = false; }
+  loadSteam();
+});
+
+$('steamUsers').addEventListener('click', async (e) => {
+  const btn = e.target.closest('button[data-steam-save]');
+  if (!btn) return;
+  const li = btn.closest('li[data-steam-user]');
+  btn.disabled = true;
+  try {
+    await api('PUT', `steam/users/${li.dataset.steamUser}`, { profile: li.querySelector('input').value });
+  } finally {
+    btn.disabled = false;
+  }
+  loadSteam();
 });
 
 // Beim Laden: gespeichertes Passwort oder Admin-Nutzer-Cookie prüfen.
