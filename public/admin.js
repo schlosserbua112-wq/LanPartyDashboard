@@ -58,6 +58,7 @@ function render(next) {
   renderWheelAdmin();
   renderPollsAdmin();
   renderLeaderboardAdmin();
+  tournaments.update(state.tournaments);
   // Einstellungen nur befüllen, wenn gerade niemand darin tippt.
   const form = $('settingsForm');
   if (!form.contains(document.activeElement)) {
@@ -145,6 +146,7 @@ $('tabs').addEventListener('click', (e) => {
     loadUsers();
     loadScoreHistory();
   }
+  if (btn.dataset.view === 'tournaments') loadUsers();
   if (btn.dataset.view === 'wheel') {
     loadUsers();
     if (state) wheel.update(state.wheel);
@@ -194,6 +196,8 @@ async function loadUsers() {
   renderUsers(users);
   renderWheelAdmin();
   renderLeaderboardAdmin();
+  renderTournamentUsers();
+  renderTournamentActions(tournaments.selected());
 }
 
 $('userForm').addEventListener('submit', async (e) => {
@@ -469,6 +473,99 @@ $('scoreHistory').addEventListener('click', (e) => {
 
 $('resetScores').addEventListener('click', () => {
   if (confirm('Wirklich alle Punkte aller Spieler löschen? Die Spieler bleiben erhalten.')) api('POST', 'scores/reset');
+});
+
+// --- Turniere ----------------------------------------------------------------
+
+const tournaments = createTournaments({
+  el: $('tournamentAdmin'),
+  mode: 'admin',
+  headers: authHeaders,
+  onSelect: (t) => renderTournamentActions(t),
+});
+
+function renderTournamentUsers() {
+  const box = $('tournamentUsers');
+  const checked = new Set([...box.querySelectorAll('input:checked')].map((b) => b.value));
+  box.innerHTML = '<legend>Nutzer direkt eintragen</legend>' + (users.length
+    ? users.map((u) => `<label class="check"><input type="checkbox" value="${esc(u.id)}" ${checked.has(u.id) ? 'checked' : ''}> ${esc(u.username)}</label>`).join('')
+    : '<span class="empty">Noch keine Nutzer angelegt</span>');
+}
+
+function renderTournamentActions(t) {
+  const box = $('tournamentActions');
+  box.hidden = !t;
+  if (!t) return;
+  const free = users.filter((u) => !t.participants.some((p) => p.userId === u.id));
+  const signup = t.status === 'anmeldung'
+    ? `<form class="row" id="tParticipantForm">
+        <input name="name" maxlength="40" placeholder="Teilnehmer oder Team hinzufügen">
+        <select name="userId"><option value="">… oder Nutzer wählen</option>${free.map((u) => `<option value="${esc(u.id)}">${esc(u.username)}</option>`).join('')}</select>
+        <button>Hinzufügen</button>
+      </form>
+      <div class="toggle-row">
+        <button type="button" data-t-admin="start" class="spin-btn" style="width:auto">🎲 Auslosen &amp; starten</button>
+        <label class="check"><input type="checkbox" data-t-admin="open" ${t.open ? 'checked' : ''}> Nutzer dürfen sich selbst anmelden</label>
+      </div>`
+    : `<p class="muted">Klick auf ein Spiel im Turnierbaum, um das Ergebnis einzutragen oder zu korrigieren.</p>`;
+  box.innerHTML = `${signup}
+    <div class="toggle-row">
+      ${t.status !== 'anmeldung' ? '<button type="button" class="secondary" data-t-admin="reset">Zurück zur Anmeldung</button>' : ''}
+      <button type="button" class="icon danger" data-t-admin="delete" style="margin-left:auto">✕ Turnier löschen</button>
+    </div>`;
+}
+
+$('tournamentForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const form = e.target;
+  const body = {
+    name: form.elements.name.value,
+    game: form.elements.game.value,
+    format: form.elements.format.value,
+    open: form.elements.open.checked,
+    userIds: [...$('tournamentUsers').querySelectorAll('input:checked')].map((b) => b.value),
+    names: form.elements.names.value.split('\n').map((s) => s.trim()).filter(Boolean),
+  };
+  const res = await fetch('/api/admin/tournaments', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...authHeaders() },
+    body: JSON.stringify(body),
+  });
+  const data = await res.json().catch(() => ({}));
+  $('tournamentError').textContent = res.ok ? '' : data.error || 'Fehler';
+  if (!res.ok) return;
+  form.reset();
+  renderTournamentUsers();
+  // Das neue Turnier auswählen, sobald es über den Live-Stream da ist.
+  setTimeout(() => tournaments.select(data.id), 300);
+});
+
+$('tournamentActions').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const t = tournaments.selected();
+  const { name, userId } = e.target.elements;
+  if (!name.value.trim() && !userId.value) return;
+  await api('POST', `tournaments/${t.id}/participants`, userId.value ? { userId: userId.value } : { name: name.value });
+  name.value = '';
+});
+
+$('tournamentActions').addEventListener('click', (e) => {
+  const action = e.target.closest('button[data-t-admin]')?.dataset.tAdmin;
+  const t = tournaments.selected();
+  if (!action || !t) return;
+  if (action === 'start') api('POST', `tournaments/${t.id}/start`);
+  if (action === 'reset' && confirm(`„${t.name}“ zurück zur Anmeldung? Spielplan und Ergebnisse gehen verloren.`)) api('POST', `tournaments/${t.id}/reset`);
+  if (action === 'delete' && confirm(`„${t.name}“ wirklich löschen?`)) api('DELETE', `tournaments/${t.id}`);
+});
+
+$('tournamentActions').addEventListener('change', (e) => {
+  const box = e.target.closest('input[data-t-admin="open"]');
+  if (box) api('PATCH', `tournaments/${tournaments.selected().id}`, { open: box.checked });
+});
+
+$('tournamentAdmin').addEventListener('click', (e) => {
+  const btn = e.target.closest('[data-t-remove]');
+  if (btn) api('DELETE', `tournaments/${tournaments.selected().id}/participants/${btn.dataset.tRemove}`);
 });
 
 // Beim Laden: gespeichertes Passwort oder Admin-Nutzer-Cookie prüfen.

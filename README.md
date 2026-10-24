@@ -12,7 +12,7 @@ Ein schlankes Dashboard für LAN-Partys, gebaut für den Raspberry Pi. Ein Bilds
 Im Admin-Bereich gibt es den Reiter **Nutzer**. Dort legst du Nutzer mit Nutzernamen an und schickst ihnen ihren persönlichen Link (`/login?token=…`). Wer den Link öffnet, ist auf diesem Gerät angemeldet und sieht im Dashboard seine Features.
 
 - **Admin**: Nutzer mit Admin-Haken kommen ohne Passwort in `/admin`. Das Master-Passwort aus `ADMIN_PASSWORD` funktioniert weiterhin.
-- **Features**: Pro Nutzer schaltest du Glücksrad, Abstimmungen, Essensbestellung und Wishlist frei. Essensbestellung und Wishlist sind noch Platzhalter.
+- **Features**: Pro Nutzer schaltest du Glücksrad, Abstimmungen, Turniere, Essensbestellung und Wishlist frei. Essensbestellung und Wishlist sind noch Platzhalter.
 
 ## Abstimmungen
 
@@ -27,6 +27,16 @@ Im Admin-Bereich gibt es den Reiter **Nutzer**. Dort legst du Nutzer mit Nutzern
 - Mit Spielangabe gibt es zusätzlich eine Wertung pro Spiel. Die TV-Anzeige wechselt alle 12 Sekunden zwischen Gesamt und den einzelnen Spielen, angemeldete Nutzer wählen per Klick und sehen ihre eigene Zeile hervorgehoben.
 - Animationen und Sounds: Plätze tauschen sichtbar die Position, Punkte zählen hoch, neue Vergaben erscheinen im Live-Feed, und eine neue Führung wird mit Konfetti und Fanfare gefeiert. Den Ton schaltet 🔊 im Leaderboard ab. Browser spielen Ton erst nach dem ersten Klick ab; der Kiosk-Modus (`deploy/kiosk.sh`) erlaubt ihn von Anfang an.
 - Für spätere Features (Turniere, Achievements) gibt es im Server `awardPoints({ userId | playerId, points, reason, game, source, refId })` und `revokeScores(refId)`.
+
+## Turniere
+
+- Im Admin-Reiter **Turniere** legst du ein Turnier an: Name, Spiel und Modus (**K.-o.-System** oder **Jeder gegen jeden**). Teilnehmer trägst du als Nutzer oder als freie Namen bzw. Teams ein.
+- Ist „Nutzer dürfen sich selbst anmelden“ an, melden sich Nutzer mit dem Feature „Turniere“ im Dashboard mit „Ich bin dabei!“ an.
+- **Auslosen & starten** lost den Turnierbaum zufällig aus. Fehlen Spieler für einen vollen Baum, bekommen einzelne ein Freilos und sind direkt in der nächsten Runde.
+- Ergebnisse tragen Admins und die beiden Spieler eines Spiels ein (Klick aufs Spiel). Im K.-o.-System reicht der Sieger, der Spielstand ist optional. Bei „Jeder gegen jeden“ gibt es 3 Punkte für einen Sieg und 1 für ein Unentschieden.
+- Wird ein Ergebnis geändert, setzt das K.-o.-System alle darauf aufbauenden Spiele zurück. „Zurück zur Anmeldung“ verwirft den Spielplan.
+- Ist ein Turnier beendet, bucht es Punkte ins globale Leaderboard: 25 für den Sieger, 15 für Platz 2 und 10 für Platz 3 (im K.-o.-System beide Halbfinal-Verlierer), mit dem Spiel des Turniers für die Wertung pro Spiel. Ändert sich das Ergebnis oder wird das Turnier gelöscht, werden die Punkte neu gebucht bzw. zurückgenommen. Freie Teilnehmer ohne Nutzer bekommen Punkte nur, wenn es im Leaderboard einen gleichnamigen Spieler gibt.
+- TV-Anzeige und Dashboard zeigen laufende Turniere live, mehrere wechseln auf dem TV alle 20 Sekunden. Neue Ergebnisse leuchten auf, der Turniersieger wird mit Konfetti und Fanfare gefeiert. Der Ton lässt sich über 🔊 in der Turnierkarte abschalten.
 
 ## Glücksrad
 
