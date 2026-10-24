@@ -251,8 +251,11 @@ const MASTER_USER = {
   features: Object.fromEntries(FEATURES.map((f) => [f.key, true])),
 };
 
+// Das Master-Passwort hat Vorrang: Hat dieser Browser zusätzlich das Cookie
+// eines Nutzers (z.B. weil dessen Link hier geöffnet wurde), bleibt der Admin
+// trotzdem der Admin und wird nicht zu diesem Nutzer.
 function viewer(req) {
-  return currentUser(req) || (hasMasterPassword(req) ? MASTER_USER : null);
+  return hasMasterPassword(req) ? MASTER_USER : currentUser(req);
 }
 
 function newToken() {
