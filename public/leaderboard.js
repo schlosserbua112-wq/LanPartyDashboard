@@ -17,8 +17,8 @@ const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
 
 const lbSound = (() => {
   let ctx = null;
-  let enabled = true;
-  try { enabled = localStorage.getItem('lanparty-sound') !== 'off'; } catch {}
+  // Stummschalten läuft zentral über FX.muteButton() (Taste M), siehe fx.js.
+  const enabled = () => !FX.muted;
 
   function audio() {
     const AC = window.AudioContext || window.webkitAudioContext;
@@ -31,7 +31,7 @@ const lbSound = (() => {
   // Browser erlauben Ton erst nach einer Interaktion. Der Kiosk-Browser am TV
   // startet mit --autoplay-policy=no-user-gesture-required und braucht das nicht.
   for (const type of ['pointerdown', 'keydown']) {
-    window.addEventListener(type, () => { if (enabled) audio(); }, { capture: true, passive: true });
+    window.addEventListener(type, () => { if (enabled()) audio(); }, { capture: true, passive: true });
   }
 
   function tone(ac, [freq, start, dur, type = 'triangle', vol = 0.16]) {
@@ -61,7 +61,7 @@ const lbSound = (() => {
 
   let last = 0;
   function play(name) {
-    if (!enabled || !SOUNDS[name]) return;
+    if (!enabled() || !SOUNDS[name]) return;
     // Mehrere Buchungen auf einmal (ganzes Team) klingen einmal.
     if (Date.now() - last < 400) return;
     const ac = audio();
@@ -70,17 +70,7 @@ const lbSound = (() => {
     SOUNDS[name].forEach((t) => tone(ac, t));
   }
 
-  function toggle() {
-    enabled = !enabled;
-    try { localStorage.setItem('lanparty-sound', enabled ? 'on' : 'off'); } catch {}
-    if (enabled) {
-      audio();
-      setTimeout(() => play('gain'), 50);
-    }
-    return enabled;
-  }
-
-  return { play, toggle, get enabled() { return enabled; } };
+  return { play };
 })();
 
 // --- Hilfen ------------------------------------------------------------------
@@ -146,7 +136,7 @@ function lbCelebrate(name, points) {
 
 // --- Leaderboard ---------------------------------------------------------------
 
-// els: { list, tabs, feed, sound }
+// els: { list, tabs, feed }
 // opts: { limit, rotate (TV: Spiele durchwechseln), userId (eigene Zeile markieren) }
 function createLeaderboard(els, opts = {}) {
   let data = null;
@@ -336,18 +326,6 @@ function createLeaderboard(els, opts = {}) {
     const btn = e.target.closest('button[data-view]');
     if (btn) setView(btn.dataset.view);
   });
-
-  if (els.sound) {
-    const showSound = () => {
-      els.sound.textContent = lbSound.enabled ? '🔊' : '🔇';
-      els.sound.title = lbSound.enabled ? 'Ton aus' : 'Ton an';
-    };
-    showSound();
-    els.sound.addEventListener('click', () => {
-      lbSound.toggle();
-      showSound();
-    });
-  }
 
   // "vor x Min." aktuell halten.
   setInterval(() => data && renderFeed(new Set()), 30000);

@@ -25,7 +25,7 @@ Im Admin-Bereich gibt es den Reiter **Nutzer**. Dort legst du Nutzer mit Nutzern
 - Eine Rangliste über alle Spiele der LAN-Party. Jeder Nutzer bekommt automatisch einen Spieler; Gäste ohne Anmeldung legst du im Admin-Reiter **Leaderboard** an und kannst sie später mit einem Nutzer verknüpfen.
 - Punkte vergibst du dort an einen oder mehrere Spieler gleichzeitig (z.B. das ganze Siegerteam), mit Grund und optional einem Spiel. Jede Vergabe steht im **Verlauf** und lässt sich einzeln zurücknehmen. Gleiche Punktzahl heißt gleicher Platz.
 - Mit Spielangabe gibt es zusätzlich eine Wertung pro Spiel. Die TV-Anzeige wechselt alle 12 Sekunden zwischen Gesamt und den einzelnen Spielen, angemeldete Nutzer wählen per Klick und sehen ihre eigene Zeile hervorgehoben.
-- Animationen und Sounds: Plätze tauschen sichtbar die Position, Punkte zählen hoch, neue Vergaben erscheinen im Live-Feed, und eine neue Führung wird mit Konfetti und Fanfare gefeiert. Den Ton schaltet 🔊 im Leaderboard ab. Browser spielen Ton erst nach dem ersten Klick ab; der Kiosk-Modus (`deploy/kiosk.sh`) erlaubt ihn von Anfang an.
+- Animationen und Sounds: Plätze tauschen sichtbar die Position, Punkte zählen hoch, neue Vergaben erscheinen im Live-Feed, und eine neue Führung wird mit Konfetti und Fanfare gefeiert. Den Ton schaltet der 🔊-Knopf oben (Taste **M**) für alle Effekte ab. Browser spielen Ton erst nach dem ersten Klick ab; der Kiosk-Modus (`deploy/kiosk.sh`) erlaubt ihn von Anfang an.
 - Turniere und Achievements buchen ihre Punkte über `awardPoints({ userId | playerId, points, reason, game, source, refId })` im Server und nehmen sie mit `revokeScores(refId)` zurück.
 
 ## Turniere
@@ -36,14 +36,14 @@ Im Admin-Bereich gibt es den Reiter **Nutzer**. Dort legst du Nutzer mit Nutzern
 - Ergebnisse tragen Admins und die beiden Spieler eines Spiels ein (Klick aufs Spiel). Im K.-o.-System reicht der Sieger, der Spielstand ist optional. Bei „Jeder gegen jeden“ gibt es 3 Punkte für einen Sieg und 1 für ein Unentschieden.
 - Wird ein Ergebnis geändert, setzt das K.-o.-System alle darauf aufbauenden Spiele zurück. „Zurück zur Anmeldung“ verwirft den Spielplan.
 - Ist ein Turnier beendet, bucht es Punkte ins globale Leaderboard: 25 für den Sieger, 15 für Platz 2 und 10 für Platz 3 (im K.-o.-System beide Halbfinal-Verlierer), mit dem Spiel des Turniers für die Wertung pro Spiel. Ändert sich das Ergebnis oder wird das Turnier gelöscht, werden die Punkte neu gebucht bzw. zurückgenommen. Freie Teilnehmer ohne Nutzer bekommen Punkte nur, wenn es im Leaderboard einen gleichnamigen Spieler gibt.
-- TV-Anzeige und Dashboard zeigen laufende Turniere live, mehrere wechseln auf dem TV alle 20 Sekunden. Neue Ergebnisse leuchten auf, der Turniersieger wird mit Konfetti und Fanfare gefeiert. Der Ton lässt sich über 🔊 in der Turnierkarte abschalten.
+- TV-Anzeige und Dashboard zeigen laufende Turniere live, mehrere wechseln auf dem TV alle 20 Sekunden. Neue Ergebnisse leuchten auf, der Turniersieger wird mit Konfetti und Fanfare gefeiert. Der Ton hängt am gemeinsamen 🔊-Knopf (Taste **M**).
 
 ## Achievements
 
 - Alle angemeldeten Nutzer sammeln Achievements, ohne dass du etwas freischalten musst. Viele kommen von selbst: erste Anmeldung, Abstimmungen (mitstimmen, 5× mitstimmen, für die Gewinner-Antwort stimmen), Glücksrad (Einträge, drehen, eigener Eintrag gewinnt), nachts zwischen 3 und 5 Uhr dabei sein und 5 Achievements sammeln.
 - Im Admin-Reiter **Achievements** vergibst du die übrigen von Hand (MVP, Clutch-König, Turniersieger, …), legst eigene mit Emoji, Beschreibung und Seltenheit an und nimmst Achievements wieder weg.
 - Seltenheiten bringen Punkte: Gewöhnlich 10, Selten 25, Episch 50, Legendär 100. Im Dashboard sieht jeder seine Kacheln mit Fortschritt, das Achievement-Ranking und die letzten Freischaltungen. Die Punkte landen auch im globalen Leaderboard; wird ein Achievement weggenommen oder gelöscht, verschwinden sie dort wieder.
-- Jede Freischaltung wird gefeiert: Die TV-Anzeige zeigt ein großes Popup mit Konfetti und Fanfare, auf dem eigenen Gerät gibt es das Popup für eigene Achievements und einen kleinen Hinweis für die der anderen. Der Ton lässt sich in der Achievement-Karte abschalten. Browser spielen Ton erst nach dem ersten Klick ab; `deploy/kiosk.sh` startet Chromium deshalb mit `--autoplay-policy=no-user-gesture-required`.
+- Jede Freischaltung wird gefeiert: Die TV-Anzeige zeigt ein großes Popup mit Konfetti und Fanfare, auf dem eigenen Gerät gibt es das Popup für eigene Achievements und einen kleinen Hinweis für die der anderen. Der Ton hängt am gemeinsamen 🔊-Knopf (Taste **M**). Browser spielen Ton erst nach dem ersten Klick ab; `deploy/kiosk.sh` startet Chromium deshalb mit `--autoplay-policy=no-user-gesture-required`.
 
 ## Glücksrad
 
@@ -52,6 +52,22 @@ Im Admin-Bereich gibt es den Reiter **Nutzer**. Dort legst du Nutzer mit Nutzern
 - Beim Drehen lost der Server den Gewinner aus. TV-Anzeige, Nutzerseiten und Admin-Seite drehen synchron und landen auf demselben Feld.
 - **Umschalter Admin-Modus / Nutzermodus**: Admins wechseln oben zwischen `/admin` und dem Dashboard. Wer mit dem Master-Passwort angemeldet ist, sieht im Nutzermodus alle Features.
 - **Neuer Link** macht den alten Link ungültig und meldet den Nutzer überall ab. **Löschen** entfernt den Nutzer samt Zugang.
+
+## Animationen und Sound
+
+Glücksrad (Tick am Zeiger, Konfetti und Fanfare beim Ergebnis), Abstimmungen (wachsende Balken, Sieger mit Krone), Zeitplan und Server melden Änderungen mit kurzen Effekten. Die Töne erzeugt der Browser selbst, es gibt keine Audiodateien. Der Lautsprecher-Knopf oben (oder die Taste **M**) schaltet den Ton pro Gerät stumm. Wer im Betriebssystem „Bewegung reduzieren“ eingestellt hat, bekommt keine Animationen.
+
+Neue Features nutzen dafür `public/fx.js` (vor dem eigenen Skript einbinden):
+
+```js
+FX.sound('win');                      // tick, spin, win, vote, unvote, pop, remove, coin, chime, up, down, error
+FX.confettiAt(element);               // Konfetti aus der Mitte eines Elements
+FX.bump(element, 'fx-pop');           // fx-pop, fx-glow, fx-enter, fx-shake, fx-press, fx-flash-ok, fx-flash-bad
+FX.floatText(element, '+5');          // aufsteigender Text
+FX.flip(liste, () => { /* neu rendern */ });   // Umsortieren animieren (Kinder mit data-key)
+FX.bars(liste, () => { /* neu rendern */ });   // Balken mit data-key und data-w (Prozent) wachsen lassen
+const vorher = FX.track('schluessel', wert);  // vorheriger Wert, undefined beim ersten Aufruf
+```
 
 ## Warum dieser Stack
 
@@ -111,6 +127,8 @@ EOT
 ```
 
 Bei der Docker-Variante den Pfad zu `kiosk.sh` entsprechend anpassen. Unter Wayland (Raspberry Pi OS Bookworm) den Bildschirmschoner zusätzlich in `raspi-config` unter *Display Options → Screen Blanking* abschalten.
+
+`kiosk.sh` startet Chromium so, dass die Soundeffekte auch ohne Klick auf dem Bildschirm laufen. Lautsprecher am Pi anschließen (HDMI-Ton reicht).
 
 ## Konfiguration
 

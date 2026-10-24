@@ -420,8 +420,6 @@ textarea { resize: vertical; }
 .lb-card { display: flex; flex-direction: column; }
 .lb-card h2 { display: flex; align-items: baseline; gap: 0.5rem; }
 .lb-card h2 small { margin-left: 0; color: var(--text); }
-.lb-sound { margin-left: auto; padding: 0.1rem 0.4rem; background: none; font-size: 1rem; line-height: 1; opacity: 0.6; }
-.lb-sound:hover { opacity: 1; }
 
 .lb-tabs { display: flex; flex-wrap: wrap; gap: 0.35rem; margin: -0.3rem 0 0.6rem; }
 .lb-tabs button {
@@ -668,7 +666,6 @@ textarea { resize: vertical; }
 .t-tabs button.active { color: var(--bg); background: var(--accent); border-color: var(--accent); }
 .t-tabs .live { display: inline-block; width: 0.5em; height: 0.5em; border-radius: 50%; background: var(--bad); margin-left: 0.3em; animation: t-blink 1.2s infinite; vertical-align: middle; }
 #tournamentCard { position: relative; }
-.t-sound { position: absolute; top: 0.7rem; right: 1.2rem; padding: 0.1rem 0.4rem; font-size: 1rem; }
 .t-top:not(:has(.t-tabs)) { display: contents; }
 .t-body { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 0.6rem; }
 .t-body.switching { animation: t-fade 0.5s ease; }
@@ -814,7 +811,6 @@ textarea { resize: vertical; }
 }
 #achievementsCard { grid-area: achievements; }
 .ach-card h2 { display: flex; align-items: baseline; gap: 0.5rem; }
-.sound-toggle { margin-left: auto; font-size: 1rem; line-height: 1; }
 .ach-body { display: grid; grid-template-columns: minmax(0, 3fr) minmax(240px, 1fr); gap: 1.5rem; }
 .ach-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 0.7rem; }
 
@@ -993,3 +989,118 @@ select {
 .chip button { padding: 0 0.35rem; background: none; color: var(--muted); font-size: 0.85em; }
 .chip button:hover { color: var(--bad); }
 @media (max-width: 900px) { .ach-admin-layout { grid-template-columns: 1fr; } }
+
+/* ------------------------------------------- Animationen (siehe fx.js) */
+
+.mute-btn {
+  padding: 0.3rem 0.6rem;
+  font-size: 1.1em;
+  line-height: 1;
+  background: var(--card-2);
+  border: 1px solid var(--line);
+  border-radius: 99px;
+  transition: transform 0.15s ease, background 0.2s ease;
+}
+.mute-btn:hover { transform: scale(1.1); }
+.mute-btn.muted { opacity: 0.6; }
+.admin-head nav:last-child { display: flex; align-items: center; gap: 1rem; }
+
+/* Karten erscheinen beim Laden nacheinander */
+.card { animation: fx-card-in 0.6s cubic-bezier(.2,.8,.2,1) both; }
+.grid > .card:nth-child(2), .view > .card:nth-child(2) { animation-delay: 0.07s; }
+.grid > .card:nth-child(3), .view > .card:nth-child(3) { animation-delay: 0.14s; }
+.grid > .card:nth-child(4), .view > .card:nth-child(4) { animation-delay: 0.21s; }
+.grid > .card:nth-child(5), .view > .card:nth-child(5) { animation-delay: 0.28s; }
+.grid > .card:nth-child(6) { animation-delay: 0.35s; }
+@keyframes fx-card-in { from { opacity: 0; transform: translateY(14px) scale(0.98); } }
+
+/* Schimmernder Titel */
+.topbar h1 {
+  background-image: linear-gradient(90deg, var(--accent), var(--accent-2), #ff5c7a, var(--accent));
+  background-size: 300% 100%;
+  animation: fx-shimmer 8s linear infinite;
+}
+@keyframes fx-shimmer { to { background-position: 300% 0; } }
+
+/* Laufender Programmpunkt atmet leicht */
+.schedule .now { animation: fx-breathe 3s ease-in-out infinite; }
+@keyframes fx-breathe { 50% { box-shadow: 0 0 18px rgba(56, 225, 255, 0.25); } }
+
+/* Drehen-Knopf lädt zum Klicken ein */
+.spin-btn:not(:disabled) {
+  background: linear-gradient(90deg, var(--accent), var(--accent-2), var(--accent));
+  background-size: 200% 100%;
+  animation: fx-shimmer 4s linear infinite, fx-ready 2s ease-in-out infinite;
+  transition: transform 0.12s ease;
+}
+.spin-btn:not(:disabled):hover { transform: translateY(-2px); }
+.spin-btn:not(:disabled):active { transform: scale(0.97); }
+@keyframes fx-ready { 50% { box-shadow: 0 0 22px rgba(177, 108, 255, 0.55); } }
+
+.wheel-status.result { animation: fx-result-glow 1.6s ease-in-out infinite; }
+@keyframes fx-result-glow { 50% { text-shadow: 0 0 18px rgba(255, 200, 87, 0.7); } }
+
+/* Knöpfe reagieren auf Klicks */
+button { transition: transform 0.1s ease, filter 0.15s ease; }
+button:hover:not(:disabled) { filter: brightness(1.1); }
+button:active:not(:disabled) { transform: scale(0.96); }
+
+/* Abstimmung: Sieger hervorheben */
+.votes li.winner .name { color: var(--warn); font-weight: 700; }
+.votes li.winner .bar span { background: linear-gradient(90deg, var(--warn), #ff9f43); }
+.bar span { transition: width 0.8s cubic-bezier(.2,.8,.2,1); }
+
+.toast { animation: fx-toast-in 0.4s cubic-bezier(.2,.8,.2,1); }
+@keyframes fx-toast-in { from { opacity: 0; transform: translate(-50%, -150%); } }
+
+/* Einmal-Effekte, ausgelöst über FX.bump() */
+.fx-pop { animation: fx-pop 0.45s cubic-bezier(.2,1.6,.4,1); display: inline-block; }
+@keyframes fx-pop { 0% { transform: scale(1); } 40% { transform: scale(1.35); } 100% { transform: scale(1); } }
+.wheel-status.fx-pop { display: block; }
+
+.fx-press { animation: fx-press 0.35s ease; }
+@keyframes fx-press { 30% { transform: scale(0.96); } 70% { transform: scale(1.02); } }
+
+.fx-enter { animation: fx-enter 0.5s cubic-bezier(.2,.8,.2,1); }
+@keyframes fx-enter {
+  from { opacity: 0; transform: translateX(-16px); background: rgba(56, 225, 255, 0.25); }
+  to { background: transparent; }
+}
+
+.fx-glow { animation: fx-glow 1.2s ease 2; }
+@keyframes fx-glow { 50% { box-shadow: 0 0 0 3px var(--accent), 0 0 28px var(--accent); } }
+
+.fx-shake { animation: fx-shake 0.4s ease; }
+@keyframes fx-shake { 20%, 60% { transform: translateX(-5px); } 40%, 80% { transform: translateX(5px); } }
+
+.fx-flash-ok { animation: fx-flash-ok 1.2s ease; }
+.fx-flash-bad { animation: fx-flash-bad 1.2s ease 2; }
+@keyframes fx-flash-ok { 30% { background: rgba(61, 220, 132, 0.25); } }
+@keyframes fx-flash-bad { 30% { background: rgba(255, 92, 122, 0.3); } }
+.servers li { border-radius: 6px; }
+
+.fx-float {
+  position: absolute;
+  left: 50%;
+  top: -0.2em;
+  z-index: 50;
+  pointer-events: none;
+  white-space: nowrap;
+  font-weight: 800;
+  color: var(--ok);
+  transform: translate(-50%, 0);
+  animation: fx-float 1.3s ease-out forwards;
+  text-shadow: 0 2px 8px rgba(0, 0, 0, 0.6);
+}
+.fx-float.bad { color: var(--bad); }
+@keyframes fx-float {
+  from { opacity: 0; transform: translate(-50%, 0) scale(0.6); }
+  20% { opacity: 1; transform: translate(-50%, -12px) scale(1.2); }
+  to { opacity: 0; transform: translate(-50%, -36px) scale(1); }
+}
+
+.fx-confetti { position: fixed; inset: 0; width: 100vw; height: 100vh; pointer-events: none; z-index: 40; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation: none !important; transition: none !important; }
+}

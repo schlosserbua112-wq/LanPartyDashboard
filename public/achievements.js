@@ -10,8 +10,7 @@ const RARITY_COLORS = { common: '#a9b3cf', rare: '#38e1ff', epic: '#b16cff', leg
 
 const achievementSound = (() => {
   let ctx = null;
-  let muted = false;
-  try { muted = localStorage.getItem('lanparty-sound') === 'aus'; } catch {}
+  // Stummschalten läuft zentral über FX.muteButton() (Taste M), siehe fx.js.
 
   function context() {
     const AC = window.AudioContext || window.webkitAudioContext;
@@ -48,7 +47,7 @@ const achievementSound = (() => {
   };
 
   function play(rarity = 'common', quiet = false) {
-    if (muted) return;
+    if (FX.muted) return;
     const ac = context();
     if (!ac || ac.state !== 'running') return;
     const now = ac.currentTime + 0.02;
@@ -65,16 +64,7 @@ const achievementSound = (() => {
     }
   }
 
-  return {
-    play,
-    get muted() { return muted; },
-    toggle() {
-      muted = !muted;
-      try { localStorage.setItem('lanparty-sound', muted ? 'aus' : 'an'); } catch {}
-      if (!muted) play('common', true);
-      return muted;
-    },
-  };
+  return { play };
 })();
 
 // --- Konfetti ----------------------------------------------------------------

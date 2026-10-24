@@ -254,8 +254,13 @@ $('userList').addEventListener('change', async (e) => {
 
 // --- Glücksrad ---------------------------------------------------------------
 
-const wheel = createWheel($('wheel'), ({ spinning, spin, lastResult }) => {
+const wheel = createWheel($('wheel'), ({ spinning, spin, lastResult, live }) => {
   const el = $('wheelStatus');
+  if (live) {
+    FX.sound('win');
+    FX.confettiAt($('wheel'), { count: 180 });
+    setTimeout(() => FX.bump(el, 'fx-pop'), 0);
+  }
   el.classList.toggle('result', Boolean(spin && !spinning));
   el.textContent = spinning ? `${spin.by} dreht…` : spin ? `🎉 ${spin.result}` : lastResult ? `Zuletzt: ${lastResult}` : '';
   $('spinBtn').disabled = spinning;
@@ -270,6 +275,7 @@ async function wheelApi(method, url, body) {
   });
   const data = await res.json().catch(() => ({}));
   $('wheelError').textContent = res.ok ? '' : data.error || 'Fehler';
+  if (!res.ok) FX.sound('error');
   return res.ok;
 }
 
@@ -318,11 +324,12 @@ $('wheelEntries').addEventListener('click', (e) => {
 
 function pollBars(poll) {
   const max = Math.max(1, ...poll.options.map((o) => o.votes));
-  return poll.options.map((o) => `<li><span class="name">${esc(o.text)}</span><span class="bar"><span style="width:${(o.votes / max) * 100}%"></span></span><span class="count">${o.votes}</span></li>`).join('');
+  return poll.options.map((o) => `<li><span class="name">${esc(o.text)}</span><span class="bar"><span data-key="${esc(poll.id)}-${esc(o.id)}" data-w="${(o.votes / max) * 100}"></span></span><span class="count">${o.votes}</span></li>`).join('');
 }
 
 function renderPollsAdmin() {
   if (!state) return;
+  FX.bars($('pollList'), () => {
   $('pollList').innerHTML = state.polls.length
     ? state.polls.map((p) => `<li data-poll="${esc(p.id)}">
         <div class="poll-head">
@@ -338,6 +345,7 @@ function renderPollsAdmin() {
         </div>
       </li>`).join('')
     : '<li class="empty">Noch keine Abstimmungen</li>';
+  });
 }
 
 $('pollForm').addEventListener('submit', async (e) => {
@@ -351,7 +359,10 @@ $('pollForm').addEventListener('submit', async (e) => {
   });
   const data = await res.json().catch(() => ({}));
   $('pollError').textContent = res.ok ? '' : data.error || 'Fehler';
-  if (res.ok) form.reset();
+  if (res.ok) {
+    form.reset();
+    FX.sound('chime');
+  } else FX.sound('error');
 });
 
 $('pollList').addEventListener('click', (e) => {
@@ -639,6 +650,8 @@ $('achAdminList').addEventListener('click', (e) => {
   if (achAction === 'revoke' && confirm('Achievement wieder wegnehmen?')) api('DELETE', `achievements/unlocks/${id}`);
   if (achAction === 'delete-def' && confirm('Eigenes Achievement löschen? Es verschwindet auch bei allen, die es haben.')) api('DELETE', `achievements/defs/${id}`);
 });
+
+document.querySelector('.admin-head nav:last-child').prepend(FX.muteButton());
 
 // Beim Laden: gespeichertes Passwort oder Admin-Nutzer-Cookie prüfen.
 fetch('/api/admin/login', { method: 'POST', headers: authHeaders() })

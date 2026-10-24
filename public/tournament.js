@@ -8,8 +8,7 @@
 
 const tournamentSfx = (() => {
   let ctx = null;
-  let muted = false;
-  try { muted = localStorage.getItem('lanparty-sound') === 'aus'; } catch {}
+  // Stummschalten läuft zentral über FX.muteButton() (Taste M), siehe fx.js.
 
   function audio() {
     if (!ctx) {
@@ -21,7 +20,7 @@ const tournamentSfx = (() => {
     return ctx;
   }
   // Browser erlauben Ton erst nach einer Interaktion: beim ersten Klick freischalten.
-  document.addEventListener('pointerdown', () => !muted && audio(), { once: true });
+  document.addEventListener('pointerdown', () => !FX.muted && audio(), { once: true });
 
   function tone(ac, freq, at, dur, type = 'triangle', gain = 0.18, slideTo = null) {
     const osc = ac.createOscillator();
@@ -76,16 +75,9 @@ const tournamentSfx = (() => {
 
   return {
     play(name) {
-      if (muted) return;
+      if (FX.muted) return;
       const ac = audio();
       if (ac && sounds[name]) sounds[name](ac, ac.currentTime + 0.02);
-    },
-    get muted() { return muted; },
-    toggle() {
-      muted = !muted;
-      try { localStorage.setItem('lanparty-sound', muted ? 'aus' : 'an'); } catch {}
-      if (!muted) this.play('join');
-      return muted;
     },
   };
 })();
@@ -259,8 +251,7 @@ function createTournaments(options) {
     const tabs = list.length > 1
       ? `<div class="t-tabs">${list.map((x) => `<button type="button" class="${x.id === t.id ? 'active' : ''}" data-t-select="${esc(x.id)}">${esc(x.name)}${x.status === 'laeuft' ? ' <span class="live"></span>' : ''}</button>`).join('')}</div>`
       : '';
-    const sound = mode === 'admin' ? '' : `<button type="button" class="icon t-sound" data-t-action="sound" title="Ton an/aus">${tournamentSfx.muted ? '🔇' : '🔊'}</button>`;
-    el.innerHTML = `<div class="t-top">${tabs}${sound}</div><div class="t-body ${fx.switching ? 'switching' : ''}">${tournamentHtml(t, { ...opts, removable: mode === 'admin', fresh: fx.fresh, entering: fx.entering })}</div>`;
+    el.innerHTML = `<div class="t-top">${tabs}</div><div class="t-body ${fx.switching ? 'switching' : ''}">${tournamentHtml(t, { ...opts, removable: mode === 'admin', fresh: fx.fresh, entering: fx.entering })}</div>`;
   }
 
   function select(id, fx) {
@@ -419,10 +410,6 @@ function createTournaments(options) {
     const match = e.target.closest('[data-match]');
     if (match) return openDialog(match.dataset.match);
     const action = e.target.closest('[data-t-action]')?.dataset.tAction;
-    if (action === 'sound') {
-      tournamentSfx.toggle();
-      return render();
-    }
     if (action === 'join' || action === 'leave') {
       const error = await post(`${selectedId}/${action}`);
       if (error) alert(error);
