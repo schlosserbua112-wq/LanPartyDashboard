@@ -64,6 +64,44 @@
       <div class="polls" id="polls"></div>
     </section>
 
+    <section class="card net-card" id="networkCard">
+      <h2>Netzwerk <button type="button" class="sound-toggle" id="netSound"></button></h2>
+      <div class="net-tiles" id="netTiles"></div>
+      <div class="net-wan" id="netWan" hidden>
+        <div class="net-rates">
+          <div class="rate down"><small>↓ Download</small><strong id="netDown">–</strong><small>Mbit/s</small><span class="use"><span id="netDownBar"></span></span></div>
+          <div class="rate up"><small>↑ Upload</small><strong id="netUp">–</strong><small>Mbit/s</small><span class="use"><span id="netUpBar"></span></span></div>
+        </div>
+        <canvas class="net-chart" id="netChart"></canvas>
+        <small class="net-max" id="netMax"></small>
+      </div>
+      <div class="net-dev-box">
+        <h3 class="side-title">Geräte <small id="netDevCount"></small></h3>
+        <ul class="net-devices" id="netDevices"></ul>
+      </div>
+      <p class="net-banner" id="netSpeedBanner" hidden></p>
+      <div class="net-speed" id="netSpeed" hidden>
+        <h3 class="side-title">Dein Verbindungstest</h3>
+        <div class="gauge-wrap">
+          <canvas id="netGauge"></canvas>
+          <div class="gauge-readout"><strong id="netGaugeValue">0</strong><small>Mbit/s</small><span id="netPhase">Bereit</span></div>
+        </div>
+        <dl class="net-results">
+          <div><dt>Ping</dt><dd data-result="ping">–</dd></div>
+          <div><dt>Jitter</dt><dd data-result="jitter">–</dd></div>
+          <div><dt>Download</dt><dd data-result="down">–</dd></div>
+          <div><dt>Upload</dt><dd data-result="up">–</dd></div>
+        </dl>
+        <button type="button" id="netTestBtn" class="spin-btn">Verbindung testen</button>
+        <p class="error" id="netTestError"></p>
+      </div>
+      <div class="net-tests-box" id="netTestsBox" hidden>
+        <h3 class="side-title">Schnellste Verbindungen</h3>
+        <ol class="net-tests" id="netTests"></ol>
+      </div>
+      <p class="net-event" id="netEvent"></p>
+    </section>
+
     <section class="card" id="serversCard">
       <h2>Server</h2>
       <ul class="servers" id="servers"></ul>
@@ -76,6 +114,7 @@
 
   <script src="/common.js"></script>
   <script src="/wheel.js"></script>
+  <script src="/network.js"></script>
   <script src="/display.js"></script>
 </body>
 </html>

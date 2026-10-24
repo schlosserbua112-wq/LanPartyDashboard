@@ -30,6 +30,7 @@
       <button type="button" data-view="dashboard" class="active">Dashboard</button>
       <button type="button" data-view="wheel">Glücksrad</button>
       <button type="button" data-view="polls">Abstimmungen</button>
+      <button type="button" data-view="network">Netzwerk</button>
       <button type="button" data-view="users">Nutzer</button>
     </nav>
 
@@ -134,6 +135,58 @@
       </section>
     </div>
 
+    <div class="view net-admin-layout" id="view-network" hidden>
+      <section class="card wide-card">
+        <h2>Status <small id="netCheckedAt"></small></h2>
+        <div class="net-tiles" id="netAdminTiles"></div>
+        <p class="muted" id="netWanHint" hidden>Den Internet-Durchsatz liest der Pi per UPnP aus der FritzBox. Schalte dafür in der FritzBox unter <em>Heimnetz → Netzwerk → Netzwerkeinstellungen</em> die Option <em>„Statusinformationen über UPnP übertragen“</em> ein.</p>
+      </section>
+
+      <section class="card">
+        <h2>Geräte überwachen</h2>
+        <p class="muted">Diese Geräte pingt der Pi regelmäßig an. Sie erscheinen mit Ping-Zeit im Dashboard und auf der Anzeige.</p>
+        <form class="row" data-collection="devices">
+          <input name="name" placeholder="Name, z.B. PC Anna" required>
+          <input name="host" placeholder="IP oder Hostname" required pattern="[A-Za-z0-9][A-Za-z0-9.:\-]*">
+          <button>Hinzufügen</button>
+        </form>
+        <ul class="items" id="list-devices"></ul>
+      </section>
+
+      <section class="card">
+        <h2>Geräte im Netz finden</h2>
+        <p class="muted">Der Pi klopft einmal bei allen Adressen im Heimnetz an. Das dauert etwa zehn Sekunden.</p>
+        <button type="button" id="netDiscover">Netzwerk durchsuchen</button>
+        <ul class="items" id="netFound"></ul>
+      </section>
+
+      <section class="card">
+        <h2>Einstellungen</h2>
+        <form id="netSettingsForm" class="stack">
+          <label>Internet-Ziel für den Ping <input name="netInternet" placeholder="1.1.1.1"></label>
+          <label>Router-Adresse (leer = automatisch) <input name="netRouter" placeholder="z.B. 192.168.178.1"></label>
+          <button>Speichern</button>
+        </form>
+        <ul class="tips">
+          <li id="netModeTip"></li>
+          <li>Windows-PCs beantworten Ping meist nicht. Sie gelten trotzdem als online, sobald sie im Netz sind, nur ohne Ping-Zeit. Für Ping-Zeiten in der Windows-Firewall die Regel „Datei- und Druckerfreigabe (Echoanforderung – ICMPv4 eingehend)“ aktivieren.</li>
+          <li>Offline wird ein Gerät erst nach zwei verpassten Antworten in Folge angezeigt.</li>
+        </ul>
+      </section>
+
+      <section class="card">
+        <h2>Verlauf</h2>
+        <ul class="net-log" id="netLog"></ul>
+      </section>
+
+      <section class="card wide-card">
+        <h2>Verbindungstests</h2>
+        <p class="muted">Nutzer mit dem Feature „Verbindungstest“ messen im Dashboard Ping, Download und Upload zwischen ihrem Gerät und dem Pi. Das letzte Ergebnis pro Nutzer landet in der Bestenliste.</p>
+        <ul class="items" id="netTestList"></ul>
+        <button type="button" class="secondary" id="netClearTests">Liste leeren</button>
+      </section>
+    </div>
+
     <div class="view" id="view-users" hidden>
       <section class="card">
         <h2>Nutzer anlegen</h2>
@@ -155,6 +208,7 @@
 
   <script src="/common.js"></script>
   <script src="/wheel.js"></script>
+  <script src="/network.js"></script>
   <script src="/admin.js"></script>
 </body>
 </html>

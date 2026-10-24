@@ -6,7 +6,7 @@ ENV NODE_ENV=production \
     DATA_DIR=/data
 
 WORKDIR /app
-COPY package.json server.js ./
+COPY package.json server.js netmon.js ./
 COPY public ./public
 
 RUN mkdir -p /data && chown node:node /data

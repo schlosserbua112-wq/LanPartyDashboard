@@ -12,13 +12,27 @@ Ein schlankes Dashboard für LAN-Partys, gebaut für den Raspberry Pi. Ein Bilds
 Im Admin-Bereich gibt es den Reiter **Nutzer**. Dort legst du Nutzer mit Nutzernamen an und schickst ihnen ihren persönlichen Link (`/login?token=…`). Wer den Link öffnet, ist auf diesem Gerät angemeldet und sieht im Dashboard seine Features.
 
 - **Admin**: Nutzer mit Admin-Haken kommen ohne Passwort in `/admin`. Das Master-Passwort aus `ADMIN_PASSWORD` funktioniert weiterhin.
-- **Features**: Pro Nutzer schaltest du Glücksrad, Abstimmungen, Essensbestellung und Wishlist frei. Essensbestellung und Wishlist sind noch Platzhalter.
+- **Features**: Pro Nutzer schaltest du Glücksrad, Abstimmungen, Verbindungstest, Essensbestellung und Wishlist frei. Essensbestellung und Wishlist sind noch Platzhalter.
 
 ## Abstimmungen
 
 - Im Admin-Reiter **Abstimmungen** legst du Umfragen mit Frage und Antworten an, beendest sie, öffnest sie wieder, setzt Stimmen zurück oder löschst sie.
 - Nutzer mit dem Feature „Abstimmungen“ stimmen direkt im Dashboard ab: eine Stimme pro Umfrage, änderbar solange sie läuft. Nochmal auf die eigene Antwort klicken zieht die Stimme zurück.
 - Die TV-Anzeige zeigt alle laufenden Umfragen und das Ergebnis der zuletzt beendeten. Wer wofür gestimmt hat, ist nicht öffentlich.
+
+## Netzwerk-Monitoring
+
+Die Karte **Netzwerk** im Dashboard und auf der TV-Anzeige zeigt live, wie es um das LAN steht. Der Pi misst alle 10 Sekunden:
+
+- **Internet, Router, DNS**: Ping-Zeit, Jitter und Paketverlust mit Verlaufskurve. Der Router wird automatisch erkannt (bei der FritzBox meist `192.168.178.1`).
+- **Internet-Durchsatz**: aktueller Download und Upload der ganzen Party samt Auslastung der Leitung, direkt aus der FritzBox. Dafür in der FritzBox *Heimnetz → Netzwerk → Netzwerkeinstellungen → „Statusinformationen über UPnP übertragen“* einschalten. Ohne diese Option bleibt der Bereich ausgeblendet.
+- **Geräte**: Im Admin-Reiter **Netzwerk** trägst du PCs, Konsolen usw. ein oder lässt den Pi mit **Netzwerk durchsuchen** alle Geräte im Heimnetz finden. Fällt ein Gerät aus oder kommt zurück, wackelt die Zeile, ein Hinweis erscheint und es gibt einen kurzen Ton.
+
+Windows-PCs beantworten Ping meist nicht. Sie gelten trotzdem als online, sobald sie im Netz sind (der Pi sieht sie in seiner ARP-Tabelle), nur ohne Ping-Zeit.
+
+**Verbindungstest**: Nutzer mit dem Feature „Verbindungstest“ messen im Dashboard Ping, Download und Upload zwischen ihrem Gerät und dem Pi, mit Tacho-Animation. Das zeigt schnell, wessen WLAN schwächelt. Das letzte Ergebnis pro Nutzer landet in der Liste „Schnellste Verbindungen“. Es testet immer nur einer gleichzeitig.
+
+Die Töne lassen sich pro Browser über 🔊 in der Karte abschalten. Damit die TV-Anzeige ohne Klick Töne abspielen darf, startet `deploy/kiosk.sh` Chromium mit `--autoplay-policy=no-user-gesture-required`.
 
 ## Glücksrad
 
@@ -95,9 +109,11 @@ Bei der Docker-Variante den Pfad zu `kiosk.sh` entsprechend anpassen. Unter Wayl
 | `PORT` | `8080` | HTTP-Port |
 | `DATA_DIR` | `./data` | Ordner für `state.json` |
 | `SERVER_CHECK_INTERVAL` | `30` | Sekunden zwischen den Server-Checks |
+| `NET_CHECK_INTERVAL` | `10` | Sekunden zwischen den Netzwerk-Messungen |
 
 ## Hinweise
 
+- Im Docker-Container darf `ping` ohne Root nicht senden. Das Netzwerk-Monitoring misst dann die Zeit für einen TCP-Verbindungsaufbau; die Geräteerkennung per ARP funktioniert nur mit `network_mode: host`. Auf dem Pi direkt (systemd) gibt es echte Ping-Zeiten.
 - Der Server-Status prüft per **TCP**, ob ein Port offen ist. Reine UDP-Server lassen sich so nicht prüfen; trage dafür einen TCP-Port desselben Hosts ein (z.B. RCON).
 - Die Zeitangaben im Zeitplan richten sich nach der Uhr des Browsers, der die Anzeige darstellt.
 - Lokal entwickeln: `npm run dev` (Node 18+), dann http://localhost:8080 öffnen.

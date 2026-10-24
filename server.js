@@ -8,6 +8,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const net = require('node:net');
 const crypto = require('node:crypto');
+const netmon = require('./netmon');
 
 const PORT = Number(process.env.PORT) || 8080;
 const HOST = process.env.HOST || '0.0.0.0';
@@ -16,6 +17,7 @@ const DATA_FILE = path.join(DATA_DIR, 'state.json');
 const PUBLIC_DIR = path.join(__dirname, 'public');
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'lanparty';
 const SERVER_CHECK_INTERVAL = (Number(process.env.SERVER_CHECK_INTERVAL) || 30) * 1000;
+const NET_CHECK_INTERVAL = (Number(process.env.NET_CHECK_INTERVAL) || 10) * 1000;
 const MAX_BODY = 64 * 1024;
 
 if (!process.env.ADMIN_PASSWORD) {
@@ -31,11 +33,15 @@ const DEFAULT_STATE = {
     wifiSsid: '',
     wifiPassword: '',
     ticker: 'Willkommen! Bitte haltet die Kabelwege frei.',
+    netInternet: '1.1.1.1',
+    netRouter: '',
   },
   schedule: [],
   players: [],
   polls: [],
   servers: [],
+  devices: [],
+  netTests: [],
   users: [],
   wheel: { open: true, entries: [], spinnerIds: [], spin: null },
 };
@@ -46,6 +52,7 @@ const FEATURES = [
   { key: 'abstimmungen', label: 'Abstimmungen' },
   { key: 'essen', label: 'Essensbestellung' },
   { key: 'wishlist', label: 'Wishlist' },
+  { key: 'netzwerk', label: 'Verbindungstest' },
 ];
 const FEATURE_KEYS = new Set(FEATURES.map((f) => f.key));
 const SESSION_COOKIE = 'lp_session';
@@ -55,6 +62,7 @@ const COLLECTIONS = {
   schedule: { time: str(32), title: str(120), note: str(200) },
   players: { name: str(60), seat: str(20), points: num },
   servers: { name: str(60), host: str(255), port: num },
+  devices: { name: str(60), host: str(255) },
 };
 
 const SETTINGS_FIELDS = {
@@ -62,6 +70,8 @@ const SETTINGS_FIELDS = {
   wifiSsid: str(64),
   wifiPassword: str(64),
   ticker: str(300),
+  netInternet: str(255),
+  netRouter: str(255),
 };
 
 function str(max) {
@@ -88,6 +98,7 @@ function loadState() {
       state.polls = [newPoll('Was spielen wir als Nächstes?', raw.games.map((g) => g.name))];
     }
     if (Array.isArray(raw.users)) state.users = raw.users;
+    if (Array.isArray(raw.netTests)) state.netTests = raw.netTests;
     if (raw.wheel && typeof raw.wheel === 'object') Object.assign(state.wheel, raw.wheel);
     return state;
   } catch (err) {
@@ -161,6 +172,8 @@ function publicState() {
     players: state.players,
     polls: state.polls.map(pollView),
     servers: state.servers.map((s) => ({ ...s, status: serverStatus[s.id] || null })),
+    devices: state.devices,
+    netTests: state.netTests,
   };
 }
 
@@ -334,12 +347,15 @@ async function handleApi(req, res, pathname) {
       Connection: 'keep-alive',
     });
     res.write(`data: ${JSON.stringify(publicState())}\n\n`);
+    res.write(`event: net\ndata: ${JSON.stringify(monitor.snapshot())}\n\n`);
     clients.add(res);
     req.on('close', () => clients.delete(res));
     return;
   }
 
   if (method === 'GET' && pathname === '/api/health') return sendJson(res, 200, { ok: true });
+
+  if (pathname.startsWith('/api/net')) return handleNet(req, res, method, pathname.split('/').slice(3));
 
   if (pathname.startsWith('/api/polls/')) return handlePolls(req, res, method, pathname.split('/').slice(3));
 
@@ -383,6 +399,14 @@ async function handleApi(req, res, pathname) {
   if (parts[0] === 'users') return handleUsers(req, res, method, parts);
   if (parts[0] === 'wheel') return handleWheelAdmin(req, res, method, parts);
   if (parts[0] === 'polls') return handlePollsAdmin(req, res, method, parts);
+  if (method === 'GET' && parts[0] === 'net' && parts[1] === 'discover') {
+    return sendJson(res, 200, { devices: await netmon.discover() });
+  }
+  if (method === 'DELETE' && parts[0] === 'net' && parts[1] === 'tests') {
+    state.netTests = [];
+    changed();
+    return sendJson(res, 200, { ok: true });
+  }
 
   const fields = COLLECTIONS[parts[0]];
   if (!fields) return sendJson(res, 404, { error: 'Nicht gefunden' });
@@ -394,6 +418,7 @@ async function handleApi(req, res, pathname) {
     if (parts[0] === 'schedule') list.sort((a, b) => a.time.localeCompare(b.time));
     changed();
     if (parts[0] === 'servers') checkAllServers();
+    if (parts[0] === 'devices') monitor.tick();
     return sendJson(res, 201, item);
   }
 
@@ -406,6 +431,7 @@ async function handleApi(req, res, pathname) {
     if (parts[0] === 'schedule') list.sort((a, b) => a.time.localeCompare(b.time));
     changed();
     if (parts[0] === 'servers') checkAllServers();
+    if (parts[0] === 'devices') monitor.tick();
     return sendJson(res, 200, item);
   }
 
@@ -476,6 +502,7 @@ async function handleUsers(req, res, method, parts) {
     state.users.splice(state.users.indexOf(user), 1);
     state.wheel.spinnerIds = state.wheel.spinnerIds.filter((uid) => uid !== user.id);
     for (const poll of state.polls) delete poll.votes[user.id];
+    state.netTests = state.netTests.filter((t) => t.userId !== user.id);
     scheduleSave();
     return sendJson(res, 200, { ok: true });
   }
@@ -676,6 +703,82 @@ async function handlePollsAdmin(req, res, method, parts) {
   return sendJson(res, 405, { error: 'Methode nicht erlaubt' });
 }
 
+// ---------------------------------------------------------------------------
+// Netzwerk-Monitoring und Verbindungstest
+
+const monitor = netmon.createNetMonitor({
+  interval: NET_CHECK_INTERVAL,
+  getConfig: () => ({ internet: state.settings.netInternet, router: state.settings.netRouter, devices: state.devices }),
+  onUpdate: (snap) => {
+    const payload = `event: net\ndata: ${JSON.stringify(snap)}\n\n`;
+    for (const res of clients) res.write(payload);
+  },
+});
+
+// Es testet immer nur einer, sonst teilen sich mehrere die Bandbreite des Pi.
+const SPEEDTEST_TIMEOUT = 30000;
+let speedLock = null;
+let speedLockTimer = null;
+
+function releaseSpeedLock() {
+  clearTimeout(speedLockTimer);
+  speedLock = null;
+  monitor.setSpeedtest(null);
+}
+
+const mbit = (v, max) => Math.min(max, Math.max(0, Math.round(Number(v) * 10) / 10 || 0));
+
+async function handleNet(req, res, method, parts) {
+  if (method === 'GET' && parts.length === 0) return sendJson(res, 200, monitor.snapshot());
+  if (parts[0] !== 'speed') return sendJson(res, 404, { error: 'Nicht gefunden' });
+
+  const user = viewer(req);
+  if (!user) return sendJson(res, 401, { error: 'Nicht angemeldet' });
+  if (!user.isAdmin && !user.features.netzwerk) return sendJson(res, 403, { error: 'Kein Zugriff auf den Verbindungstest' });
+  const action = parts[1];
+
+  if (method === 'POST' && action === 'start') {
+    if (speedLock && speedLock.userId !== user.id) {
+      return sendJson(res, 409, { error: `Gerade testet ${speedLock.username}, versuch es gleich nochmal` });
+    }
+    clearTimeout(speedLockTimer);
+    speedLock = { userId: user.id, username: user.username };
+    speedLockTimer = setTimeout(releaseSpeedLock, SPEEDTEST_TIMEOUT);
+    monitor.setSpeedtest({ username: user.username, startedAt: Date.now() });
+    return sendJson(res, 200, { ok: true });
+  }
+
+  if (method === 'GET' && action === 'ping') {
+    res.writeHead(204, { 'Cache-Control': 'no-store' });
+    return res.end();
+  }
+
+  if (method === 'GET' && action === 'down') return netmon.streamDownload(req, res);
+
+  if (method === 'POST' && action === 'up') return sendJson(res, 200, await netmon.receiveUpload(req));
+
+  if (method === 'POST' && action === 'result') {
+    if (speedLock?.userId === user.id) releaseSpeedLock();
+    const body = await readBody(req);
+    if (body.cancel) return sendJson(res, 200, { ok: true });
+    const result = {
+      userId: user.id,
+      username: user.username,
+      ping: mbit(body.ping, 10000),
+      jitter: mbit(body.jitter, 10000),
+      down: mbit(body.down, 10000),
+      up: mbit(body.up, 10000),
+      at: Date.now(),
+    };
+    // Pro Nutzer nur das letzte Ergebnis.
+    state.netTests = [result, ...state.netTests.filter((t) => t.userId !== user.id)].slice(0, 50);
+    changed();
+    return sendJson(res, 200, result);
+  }
+
+  return sendJson(res, 404, { error: 'Nicht gefunden' });
+}
+
 function handleLogin(req, res, url) {
   const user = findUserByToken(url.searchParams.get('token'));
   if (!user) return redirect(res, '/?ungueltig=1');
@@ -711,6 +814,7 @@ server.listen(PORT, HOST, () => {
 
 checkAllServers();
 setInterval(checkAllServers, SERVER_CHECK_INTERVAL).unref();
+monitor.start();
 
 function shutdown() {
   if (saveTimer) saveNow();

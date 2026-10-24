@@ -66,6 +66,7 @@ function render(state) {
     ? ranked.slice(0, 12).map((p, i) => `<li><span class="rank">${i + 1}</span><span class="name">${esc(p.name)}${p.seat ? ` <small>Platz ${esc(p.seat)}</small>` : ''}</span><span class="points">${p.points}</span></li>`).join('')
     : '<li class="empty">Noch keine Spieler</li>';
 
+  NetUI.renderTests(state.netTests);
   renderPolls(state.polls);
   if (me && hasFeature('abstimmungen')) loadMyVotes();
 
@@ -168,7 +169,7 @@ function enterUserMode(user) {
     });
   }
   // Das Glücksrad ist schon im Dashboard; die übrigen Features sind Platzhalter.
-  const others = me.features.filter((f) => f.enabled && f.key !== 'gluecksrad' && f.key !== 'abstimmungen');
+  const others = me.features.filter((f) => f.enabled && !['gluecksrad', 'abstimmungen', 'netzwerk'].includes(f.key));
   $('featuresCard').hidden = !others.length;
   document.body.classList.toggle('no-features', !others.length);
   $('features').innerHTML = others.map((f) => `<li><strong>${esc(f.label)}</strong><small>kommt bald</small></li>`).join('');

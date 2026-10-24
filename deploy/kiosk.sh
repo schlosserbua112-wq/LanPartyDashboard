@@ -12,5 +12,6 @@ xset s noblank 2>/dev/null
 until wget -qO- "${URL%/}/api/health" >/dev/null 2>&1; do sleep 2; done
 
 BROWSER=$(command -v chromium-browser || command -v chromium)
-exec "$BROWSER" --kiosk --noerrdialogs --disable-infobars --incognito \
+# --autoplay-policy: Soundeffekte (z.B. Netzwerk-Ausfall) ohne vorherigen Klick erlauben
+exec "$BROWSER" --kiosk --noerrdialogs --disable-infobars --incognito --autoplay-policy=no-user-gesture-required \
   --disable-session-crashed-bubble --check-for-update-interval=31536000 "$URL"
