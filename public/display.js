@@ -5,6 +5,17 @@
 const $ = (id) => document.getElementById(id);
 let current = null;
 
+const wheel = createWheel($('wheel'), renderWheelStatus);
+
+function renderWheelStatus({ spinning, spin, lastResult }) {
+  const el = $('wheelStatus');
+  el.classList.toggle('result', Boolean(spin && !spinning));
+  if (spinning) el.textContent = `${spin.by} dreht…`;
+  else if (spin) el.textContent = `🎉 ${spin.result}`;
+  else if (lastResult) el.textContent = `Zuletzt: ${lastResult}`;
+  else el.textContent = '';
+}
+
 function renderClock() {
   $('clock').textContent = new Date().toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
 }
@@ -38,9 +49,8 @@ function render(state) {
 
   renderSchedule(state.schedule);
 
-  $('announcements').innerHTML = state.announcements.length
-    ? state.announcements.slice(0, 6).map((a, i) => `<li class="${i === 0 ? 'latest' : ''}"><time>${new Date(a.createdAt).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })}</time>${esc(a.text)}</li>`).join('')
-    : '<li class="empty">Keine Ankündigungen</li>';
+  $('wheelOpen').textContent = state.wheel.open ? `Einträge offen · ${location.host}/me` : 'Eingabe geschlossen';
+  wheel.update(state.wheel);
 
   const ranked = [...state.players].sort((a, b) => b.points - a.points || a.name.localeCompare(b.name));
   $('leaderboard').innerHTML = ranked.length

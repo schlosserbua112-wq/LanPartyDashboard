@@ -26,9 +26,24 @@
     <h2 class="section">Deine Features</h2>
     <ul class="feature-grid" id="features"></ul>
     <p class="muted" id="featureMsg"></p>
+
+    <section class="card wheel-section" id="wheelSection" hidden>
+      <h2>Glücksrad <small id="wheelOpen"></small></h2>
+      <div class="wheel-wrap"><canvas id="wheel"></canvas></div>
+      <p class="wheel-status" id="wheelStatus"></p>
+      <button id="spinBtn" class="spin-btn" hidden>Drehen!</button>
+      <form id="entryForm" class="row">
+        <input name="text" maxlength="40" placeholder="Neuer Eintrag fürs Rad" required>
+        <button>Hinzufügen</button>
+      </form>
+      <p class="muted" id="closedHint" hidden>Die Eingabe ist geschlossen, es kommen keine neuen Einträge mehr dazu.</p>
+      <p class="error" id="wheelError"></p>
+      <ul class="items" id="entries"></ul>
+    </section>
   </main>
 
   <script src="/common.js"></script>
+  <script src="/wheel.js"></script>
   <script>
     'use strict';
     const $ = (id) => document.getElementById(id);
@@ -59,16 +74,85 @@
           location.href = '/admin';
         });
       }
+      setupWheel(me);
       const enabled = me.features.filter((f) => f.enabled);
       $('features').innerHTML = enabled.length
-        ? enabled.map((f) => `<li><button data-key="${esc(f.key)}"><strong>${esc(f.label)}</strong><small>kommt bald</small></button></li>`).join('')
+        ? enabled.map((f) => `<li><button data-key="${esc(f.key)}"><strong>${esc(f.label)}</strong><small>${f.key === 'gluecksrad' ? 'mitmachen' : 'kommt bald'}</small></button></li>`).join('')
         : '<li class="empty">Für dich ist noch kein Feature freigeschaltet.</li>';
     });
 
-    // Die Features sind noch Platzhalter; der Klick prüft nur die Berechtigung.
+    // --- Glücksrad --------------------------------------------------------
+
+    let me = null;
+    let wheelState = null;
+    let wheel = null;
+
+    async function wheelApi(method, url, body) {
+      const res = await fetch('/api/wheel/' + url, {
+        method,
+        headers: { 'Content-Type': 'application/json', ...auth },
+        body: body === undefined ? undefined : JSON.stringify(body),
+      });
+      const data = await res.json().catch(() => ({}));
+      $('wheelError').textContent = res.ok ? '' : data.error || 'Fehler';
+      return res.ok;
+    }
+
+    function setupWheel(user) {
+      me = user;
+      wheel = createWheel($('wheel'), ({ spinning, spin, lastResult }) => {
+        const el = $('wheelStatus');
+        el.classList.toggle('result', Boolean(spin && !spinning));
+        el.textContent = spinning ? `${spin.by} dreht…` : spin ? `🎉 ${spin.result}` : lastResult ? `Zuletzt: ${lastResult}` : '';
+        $('spinBtn').disabled = spinning;
+      });
+      subscribe((state) => {
+        wheelState = state.wheel;
+        renderWheel();
+      });
+    }
+
+    function renderWheel() {
+      const w = wheelState;
+      const hasFeature = me.isAdmin || me.features.some((f) => f.key === 'gluecksrad' && f.enabled);
+      const canSpin = me.isAdmin || w.spinnerIds.includes(me.id);
+      // Wer drehen darf, sieht das Rad auch ohne das Feature, kann aber nichts eintragen.
+      $('wheelSection').hidden = !hasFeature && !canSpin;
+      if ($('wheelSection').hidden) return;
+      const canAdd = hasFeature && (w.open || me.isAdmin);
+      $('wheelOpen').textContent = w.open ? 'Einträge offen' : 'Eingabe geschlossen';
+      $('spinBtn').hidden = !canSpin;
+      $('entryForm').hidden = !canAdd;
+      $('closedHint').hidden = canAdd || !hasFeature;
+      $('entries').innerHTML = w.entries.length
+        ? w.entries.map((e) => {
+            const canDelete = me.isAdmin || (hasFeature && e.ownerId === me.id && w.open);
+            return `<li><span class="grow">${esc(e.text)} <small>von ${esc(e.owner)}</small></span>${canDelete ? `<button class="icon danger" data-entry="${esc(e.id)}" title="Entfernen">✕</button>` : ''}</li>`;
+          }).join('')
+        : '<li class="empty">Noch keine Einträge</li>';
+      wheel.update(w);
+    }
+
+    $('entryForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      if (await wheelApi('POST', 'entries', { text: e.target.elements.text.value })) e.target.reset();
+    });
+
+    $('entries').addEventListener('click', (e) => {
+      const btn = e.target.closest('button[data-entry]');
+      if (btn) wheelApi('DELETE', 'entries/' + btn.dataset.entry);
+    });
+
+    $('spinBtn').addEventListener('click', () => wheelApi('POST', 'spin'));
+
+    // Glücksrad öffnet den Abschnitt oben; die anderen Features sind noch Platzhalter.
     $('features').addEventListener('click', async (e) => {
       const btn = e.target.closest('button[data-key]');
       if (!btn) return;
+      if (btn.dataset.key === 'gluecksrad') {
+        $('wheelSection').scrollIntoView({ behavior: 'smooth' });
+        return;
+      }
       const res = await fetch('/api/features/' + btn.dataset.key, { headers: auth });
       const body = await res.json();
       $('featureMsg').textContent = res.ok

@@ -32,13 +32,13 @@ const DEFAULT_STATE = {
     wifiPassword: '',
     ticker: 'Willkommen! Bitte haltet die Kabelwege frei.',
   },
-  announcements: [],
   schedule: [],
   players: [],
   games: [],
   votes: {},
   servers: [],
   users: [],
+  wheel: { open: true, entries: [], spinnerIds: [], spin: null },
 };
 
 // Features, die der Admin pro Nutzer freischalten kann. Noch Platzhalter.
@@ -52,7 +52,6 @@ const SESSION_COOKIE = 'lp_session';
 
 // Erlaubte Felder je Sammlung und wie sie bereinigt werden.
 const COLLECTIONS = {
-  announcements: { text: str(500) },
   schedule: { time: str(32), title: str(120), note: str(200) },
   players: { name: str(60), seat: str(20), points: num },
   games: { name: str(80) },
@@ -85,6 +84,7 @@ function loadState() {
     }
     if (raw.votes && typeof raw.votes === 'object') state.votes = raw.votes;
     if (Array.isArray(raw.users)) state.users = raw.users;
+    if (raw.wheel && typeof raw.wheel === 'object') Object.assign(state.wheel, raw.wheel);
     return state;
   } catch (err) {
     if (err.code !== 'ENOENT') console.error('Konnte Daten nicht laden, starte leer:', err.message);
@@ -149,7 +149,12 @@ function publicState() {
   for (const gameId of Object.values(state.votes)) tally[gameId] = (tally[gameId] || 0) + 1;
   return {
     settings: state.settings,
-    announcements: state.announcements,
+    wheel: {
+      open: state.wheel.open,
+      entries: state.wheel.entries,
+      spinnerIds: state.wheel.spinnerIds,
+      spin: state.wheel.spin ? { ...state.wheel.spin, age: Date.now() - state.wheel.spin.startedAt } : null,
+    },
     schedule: state.schedule,
     players: state.players,
     games: state.games.map((g) => ({ ...g, votes: tally[g.id] || 0 })),
@@ -245,6 +250,7 @@ function isAdmin(req) {
 
 // Wer per Master-Passwort angemeldet ist, sieht im Nutzermodus alle Features.
 const MASTER_USER = {
+  id: 'master',
   username: 'Admin',
   isAdmin: true,
   master: true,
@@ -357,6 +363,7 @@ async function handleApi(req, res, pathname) {
     const user = viewer(req);
     if (!user) return sendJson(res, 401, { error: 'Nicht angemeldet' });
     return sendJson(res, 200, {
+      id: user.id,
       username: user.username,
       isAdmin: user.isAdmin,
       master: Boolean(user.master),
@@ -374,6 +381,8 @@ async function handleApi(req, res, pathname) {
     return sendJson(res, 200, { feature: key, status: 'kommt bald' });
   }
 
+  if (pathname.startsWith('/api/wheel/')) return handleWheel(req, res, method, pathname.split('/').slice(3));
+
   if (!pathname.startsWith('/api/admin/')) return sendJson(res, 404, { error: 'Nicht gefunden' });
   if (!isAdmin(req)) return sendJson(res, 401, { error: 'Falsches Passwort' });
 
@@ -388,6 +397,7 @@ async function handleApi(req, res, pathname) {
   }
 
   if (parts[0] === 'users') return handleUsers(req, res, method, parts);
+  if (parts[0] === 'wheel') return handleWheelAdmin(req, res, method, parts);
 
   if (method === 'POST' && parts[0] === 'votes' && parts[1] === 'reset') {
     state.votes = {};
@@ -401,12 +411,7 @@ async function handleApi(req, res, pathname) {
 
   if (method === 'POST' && parts.length === 1) {
     const item = { id: crypto.randomUUID(), ...sanitize(fields, await readBody(req), false) };
-    if (parts[0] === 'announcements') {
-      item.createdAt = Date.now();
-      list.unshift(item);
-    } else {
-      list.push(item);
-    }
+    list.push(item);
     if (parts[0] === 'schedule') list.sort((a, b) => a.time.localeCompare(b.time));
     changed();
     if (parts[0] === 'servers') checkAllServers();
@@ -495,11 +500,106 @@ async function handleUsers(req, res, method, parts) {
 
   if (method === 'DELETE' && parts.length === 2) {
     state.users.splice(state.users.indexOf(user), 1);
+    state.wheel.spinnerIds = state.wheel.spinnerIds.filter((uid) => uid !== user.id);
     scheduleSave();
     return sendJson(res, 200, { ok: true });
   }
 
   return sendJson(res, 405, { error: 'Methode nicht erlaubt' });
+}
+
+// ---------------------------------------------------------------------------
+// Glücksrad
+
+const SPIN_DURATION = 8000;
+const MAX_WHEEL_ENTRIES = 60;
+const MAX_ENTRIES_PER_USER = 10;
+
+function isSpinning() {
+  const spin = state.wheel.spin;
+  return Boolean(spin && Date.now() - spin.startedAt < spin.duration);
+}
+
+async function handleWheel(req, res, method, parts) {
+  const user = viewer(req);
+  if (!user) return sendJson(res, 401, { error: 'Nicht angemeldet' });
+  const wheel = state.wheel;
+  const admin = user.isAdmin;
+
+  if (method === 'POST' && parts[0] === 'entries' && parts.length === 1) {
+    if (!admin && !user.features.gluecksrad) return sendJson(res, 403, { error: 'Kein Zugriff auf das Glücksrad' });
+    if (!wheel.open && !admin) return sendJson(res, 409, { error: 'Die Eingabe ist geschlossen' });
+    if (isSpinning()) return sendJson(res, 409, { error: 'Das Rad dreht gerade' });
+    const text = str(40)((await readBody(req)).text);
+    if (!text) return sendJson(res, 400, { error: 'Text fehlt' });
+    if (wheel.entries.length >= MAX_WHEEL_ENTRIES) return sendJson(res, 409, { error: 'Das Rad ist voll' });
+    if (!admin && wheel.entries.filter((e) => e.ownerId === user.id).length >= MAX_ENTRIES_PER_USER) {
+      return sendJson(res, 409, { error: `Du hast schon ${MAX_ENTRIES_PER_USER} Einträge` });
+    }
+    const entry = { id: crypto.randomUUID(), text, ownerId: user.id, owner: user.username };
+    wheel.entries.push(entry);
+    changed();
+    return sendJson(res, 201, entry);
+  }
+
+  if (method === 'DELETE' && parts[0] === 'entries' && parts.length === 2) {
+    const index = wheel.entries.findIndex((e) => e.id === parts[1]);
+    if (index === -1) return sendJson(res, 404, { error: 'Eintrag nicht gefunden' });
+    const own = wheel.entries[index].ownerId === user.id;
+    if (!admin && !(own && user.features.gluecksrad)) return sendJson(res, 403, { error: 'Das ist nicht dein Eintrag' });
+    if (!admin && !wheel.open) return sendJson(res, 409, { error: 'Die Eingabe ist geschlossen' });
+    if (isSpinning()) return sendJson(res, 409, { error: 'Das Rad dreht gerade' });
+    wheel.entries.splice(index, 1);
+    changed();
+    return sendJson(res, 200, { ok: true });
+  }
+
+  if (method === 'POST' && parts[0] === 'spin' && parts.length === 1) {
+    if (!admin && !wheel.spinnerIds.includes(user.id)) return sendJson(res, 403, { error: 'Du darfst nicht drehen' });
+    if (isSpinning()) return sendJson(res, 409, { error: 'Das Rad dreht gerade' });
+    if (!wheel.entries.length) return sendJson(res, 409, { error: 'Das Rad hat keine Einträge' });
+    const winnerIndex = crypto.randomInt(wheel.entries.length);
+    // Alle Anzeigen animieren aus denselben Werten und landen so auf demselben Feld.
+    wheel.spin = {
+      id: crypto.randomUUID(),
+      startedAt: Date.now(),
+      duration: SPIN_DURATION,
+      entries: wheel.entries.map((e) => ({ id: e.id, text: e.text })),
+      winnerIndex,
+      offset: crypto.randomInt(-35, 36) / 100,
+      result: wheel.entries[winnerIndex].text,
+      by: user.username,
+    };
+    changed();
+    return sendJson(res, 200, { ok: true });
+  }
+
+  return sendJson(res, 404, { error: 'Nicht gefunden' });
+}
+
+async function handleWheelAdmin(req, res, method, parts) {
+  const wheel = state.wheel;
+
+  if (method === 'PUT' && parts.length === 1) {
+    const body = await readBody(req);
+    if ('open' in body) wheel.open = Boolean(body.open);
+    if (Array.isArray(body.spinnerIds)) {
+      const known = new Set(state.users.map((u) => u.id));
+      wheel.spinnerIds = [...new Set(body.spinnerIds.map(String))].filter((id) => known.has(id));
+    }
+    changed();
+    return sendJson(res, 200, { ok: true });
+  }
+
+  if (method === 'POST' && parts[1] === 'clear') {
+    if (isSpinning()) return sendJson(res, 409, { error: 'Das Rad dreht gerade' });
+    wheel.entries = [];
+    wheel.spin = null;
+    changed();
+    return sendJson(res, 200, { ok: true });
+  }
+
+  return sendJson(res, 404, { error: 'Nicht gefunden' });
 }
 
 function handleLogin(req, res, url) {

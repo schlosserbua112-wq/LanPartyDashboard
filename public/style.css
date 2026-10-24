@@ -75,12 +75,12 @@ ul, ol { list-style: none; margin: 0; padding: 0; }
   grid-template-columns: 1.1fr 1.2fr 1fr;
   grid-template-rows: 1.4fr 1fr;
   grid-template-areas:
-    "schedule announcements leaderboard"
-    "votes votes servers";
+    "schedule wheel leaderboard"
+    "votes wheel servers";
   min-height: 0;
 }
 #scheduleCard { grid-area: schedule; }
-#announcementsCard { grid-area: announcements; }
+#wheelCard { grid-area: wheel; }
 #leaderboardCard { grid-area: leaderboard; }
 #votesCard { grid-area: votes; }
 #serversCard { grid-area: servers; }
@@ -108,14 +108,11 @@ ul, ol { list-style: none; margin: 0; padding: 0; }
 }
 .badge.alt { background: var(--card-2); color: var(--accent-2); border: 1px solid var(--accent-2); }
 
-.announcements li {
-  padding: 0.6rem 0;
-  border-bottom: 1px solid var(--line);
-  color: var(--muted);
-}
-.announcements time { margin-right: 0.8rem; font-size: 0.85em; }
-.announcements .latest { font-size: 1.5em; color: var(--text); font-weight: 600; }
-.announcements .latest time { color: var(--warn); }
+.wheel-card { display: flex; flex-direction: column; }
+.wheel-wrap { flex: 1; min-height: 0; display: grid; place-items: center; }
+.wheel-wrap canvas { width: 100%; height: 100%; display: block; }
+.wheel-status { margin: 0.6rem 0 0; min-height: 1.6em; text-align: center; font-size: 1.3em; color: var(--muted); }
+.wheel-status.result { color: var(--warn); font-weight: 700; font-size: 1.8em; }
 
 .leaderboard li {
   display: flex;
@@ -299,3 +296,11 @@ button.danger:hover { background: var(--bad); color: #fff; }
   font-size: 0.9em;
 }
 .mode-switch a.active { background: var(--accent); color: var(--bg); }
+
+/* Glücksrad auf der Nutzer- und Admin-Seite */
+.wheel-section { margin-top: 1.5rem; display: grid; gap: 0.6rem; }
+.wheel-section .wheel-wrap, .admin .wheel-wrap { height: min(80vw, 420px); }
+.wheel-section .wheel-status.result, .admin .wheel-status.result { font-size: 1.4em; }
+.spin-btn { display: block; margin: 0 auto; font-size: 1.2rem; padding: 0.7rem 2.5rem; }
+.spin-btn:disabled { opacity: 0.5; cursor: default; }
+.toggle-row { display: flex; flex-wrap: wrap; gap: 0.5rem 1.2rem; align-items: center; }

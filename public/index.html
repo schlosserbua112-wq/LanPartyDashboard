@@ -19,9 +19,10 @@
       <ol class="schedule" id="schedule"></ol>
     </section>
 
-    <section class="card" id="announcementsCard">
-      <h2>Ankündigungen</h2>
-      <ul class="announcements" id="announcements"></ul>
+    <section class="card wheel-card" id="wheelCard">
+      <h2>Glücksrad <small id="wheelOpen"></small></h2>
+      <div class="wheel-wrap"><canvas id="wheel"></canvas></div>
+      <p class="wheel-status" id="wheelStatus"></p>
     </section>
 
     <section class="card" id="leaderboardCard">
@@ -43,6 +44,7 @@
   <footer class="ticker"><span id="ticker"></span><span class="conn" id="conn"></span></footer>
 
   <script src="/common.js"></script>
+  <script src="/wheel.js"></script>
   <script src="/display.js"></script>
 </body>
 </html>

@@ -37,7 +37,6 @@ function formData(form) {
 const del = (collection, id) => `<button class="icon danger" data-action="delete" data-collection="${collection}" data-id="${esc(id)}" title="Löschen">✕</button>`;
 
 const renderers = {
-  announcements: (a) => `<span class="grow">${esc(a.text)}</span>${del('announcements', a.id)}`,
   schedule: (s) => `<span class="time">${formatTime(s.time)}</span><span class="grow"><strong>${esc(s.title)}</strong> ${esc(s.note)}</span>${del('schedule', s.id)}`,
   players: (p) => `<span class="grow"><strong>${esc(p.name)}</strong> ${p.seat ? `<small>Platz ${esc(p.seat)}</small>` : ''}</span>
     <button class="icon" data-action="points" data-id="${esc(p.id)}" data-delta="-1">−</button>
@@ -63,6 +62,7 @@ function render(next) {
       ? items.map((item) => `<li>${fn(item)}</li>`).join('')
       : '<li class="empty">Noch nichts eingetragen</li>';
   }
+  renderWheelAdmin();
   // Einstellungen nur befüllen, wenn gerade niemand darin tippt.
   const form = $('settingsForm');
   if (!form.contains(document.activeElement)) {
@@ -154,11 +154,16 @@ $('tabs').addEventListener('click', (e) => {
   for (const b of $('tabs').querySelectorAll('button')) b.classList.toggle('active', b === btn);
   for (const v of document.querySelectorAll('.view')) v.hidden = v.id !== 'view-' + btn.dataset.view;
   if (btn.dataset.view === 'users') loadUsers();
+  if (btn.dataset.view === 'wheel') {
+    loadUsers();
+    if (state) wheel.update(state.wheel);
+  }
 });
 
 // --- Nutzerverwaltung ------------------------------------------------------
 
 let features = [];
+let users = [];
 
 const inviteLink = (u) => `${location.origin}/login?token=${encodeURIComponent(u.token)}`;
 
@@ -194,7 +199,9 @@ function renderUsers(users) {
 async function loadUsers() {
   const data = await api('GET', 'users');
   features = data.features;
-  renderUsers(data.users);
+  users = data.users;
+  renderUsers(users);
+  renderWheelAdmin();
 }
 
 $('userForm').addEventListener('submit', async (e) => {
@@ -245,6 +252,66 @@ $('userList').addEventListener('change', async (e) => {
     : { features: { [box.dataset.feature]: box.checked } };
   await api('PATCH', `users/${id}`, body);
   loadUsers();
+});
+
+// --- Glücksrad ---------------------------------------------------------------
+
+const wheel = createWheel($('wheel'), ({ spinning, spin, lastResult }) => {
+  const el = $('wheelStatus');
+  el.classList.toggle('result', Boolean(spin && !spinning));
+  el.textContent = spinning ? `${spin.by} dreht…` : spin ? `🎉 ${spin.result}` : lastResult ? `Zuletzt: ${lastResult}` : '';
+  $('spinBtn').disabled = spinning;
+});
+
+// Spieler-Aktionen am Rad laufen über dieselbe Schnittstelle wie bei Nutzern.
+async function wheelApi(method, url, body) {
+  const res = await fetch('/api/wheel/' + url, {
+    method,
+    headers: { 'Content-Type': 'application/json', ...authHeaders() },
+    body: body === undefined ? undefined : JSON.stringify(body),
+  });
+  const data = await res.json().catch(() => ({}));
+  $('wheelError').textContent = res.ok ? '' : data.error || 'Fehler';
+  return res.ok;
+}
+
+function renderWheelAdmin() {
+  if (!state) return;
+  const w = state.wheel;
+  $('wheelOpen').textContent = w.open ? 'Einträge offen' : 'Eingabe geschlossen';
+  $('toggleOpen').textContent = w.open ? 'Eingabe stoppen' : 'Eingabe wieder öffnen';
+  $('wheelEntries').innerHTML = w.entries.length
+    ? w.entries.map((e) => `<li><span class="grow">${esc(e.text)} <small>von ${esc(e.owner)}</small></span><button class="icon danger" data-entry="${esc(e.id)}" title="Entfernen">✕</button></li>`).join('')
+    : '<li class="empty">Noch keine Einträge</li>';
+  $('spinners').innerHTML = users.length
+    ? users.map((u) => u.isAdmin
+        ? `<label class="check"><input type="checkbox" checked disabled> ${esc(u.username)} <small>(Admin)</small></label>`
+        : `<label class="check"><input type="checkbox" data-spinner="${esc(u.id)}" ${w.spinnerIds.includes(u.id) ? 'checked' : ''}> ${esc(u.username)}</label>`).join('')
+    : '<span class="empty">Noch keine Nutzer angelegt</span>';
+  if (!$('view-wheel').hidden) wheel.update(w);
+}
+
+$('toggleOpen').addEventListener('click', () => api('PUT', 'wheel', { open: !state.wheel.open }));
+
+$('clearWheel').addEventListener('click', () => {
+  if (confirm('Alle Einträge vom Rad entfernen?')) api('POST', 'wheel/clear');
+});
+
+$('spinBtn').addEventListener('click', () => wheelApi('POST', 'spin'));
+
+$('spinners').addEventListener('change', () => {
+  const ids = [...$('spinners').querySelectorAll('input[data-spinner]:checked')].map((b) => b.dataset.spinner);
+  api('PUT', 'wheel', { spinnerIds: ids });
+});
+
+$('wheelEntryForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  if (await wheelApi('POST', 'entries', { text: e.target.elements.text.value })) e.target.reset();
+});
+
+$('wheelEntries').addEventListener('click', (e) => {
+  const btn = e.target.closest('button[data-entry]');
+  if (btn) wheelApi('DELETE', 'entries/' + btn.dataset.entry);
 });
 
 // Beim Laden: gespeichertes Passwort oder Admin-Nutzer-Cookie prüfen.
