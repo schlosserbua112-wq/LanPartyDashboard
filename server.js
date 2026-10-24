@@ -6,7 +6,6 @@
 const http = require('node:http');
 const fs = require('node:fs');
 const path = require('node:path');
-const net = require('node:net');
 const crypto = require('node:crypto');
 const { createAchievements, emptyAchievements, RARITIES } = require('./achievements');
 const { createSpotify } = require('./spotify');
@@ -18,7 +17,6 @@ const DATA_DIR = path.resolve(process.env.DATA_DIR || path.join(__dirname, 'data
 const DATA_FILE = path.join(DATA_DIR, 'state.json');
 const PUBLIC_DIR = path.join(__dirname, 'public');
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'lanparty';
-const SERVER_CHECK_INTERVAL = (Number(process.env.SERVER_CHECK_INTERVAL) || 30) * 1000;
 const NET_CHECK_INTERVAL = (Number(process.env.NET_CHECK_INTERVAL) || 10) * 1000;
 const MAX_BODY = 64 * 1024;
 const STEAM_API_KEY = process.env.STEAM_API_KEY || '';
@@ -37,15 +35,12 @@ const DEFAULT_STATE = {
     eventName: 'LAN-Party',
     wifiSsid: '',
     wifiPassword: '',
-    ticker: 'Willkommen! Bitte haltet die Kabelwege frei.',
     netInternet: '1.1.1.1',
     netRouter: '',
   },
-  schedule: [],
   players: [],
   scores: [], // Punkte-Buchungen fürs globale Leaderboard
   polls: [],
-  servers: [],
   devices: [],
   netTests: [],
   users: [],
@@ -74,8 +69,6 @@ const SESSION_COOKIE = 'lp_session';
 
 // Erlaubte Felder je Sammlung und wie sie bereinigt werden.
 const COLLECTIONS = {
-  schedule: { time: str(32), title: str(120), note: str(200) },
-  servers: { name: str(60), host: str(255), port: num },
   devices: { name: str(60), host: str(255) },
 };
 
@@ -83,7 +76,6 @@ const SETTINGS_FIELDS = {
   eventName: str(80),
   wifiSsid: str(64),
   wifiPassword: str(64),
-  ticker: str(300),
   netInternet: str(255),
   netRouter: str(255),
 };
@@ -102,6 +94,8 @@ function loadState() {
     const raw = JSON.parse(fs.readFileSync(DATA_FILE, 'utf8'));
     const state = structuredClone(DEFAULT_STATE);
     Object.assign(state.settings, raw.settings || {});
+    // Zeitplan, Laufschrift und Spieleserver gibt es nicht mehr.
+    delete state.settings.ticker;
     for (const key of Object.keys(COLLECTIONS)) {
       if (Array.isArray(raw[key])) state[key] = raw[key];
     }
@@ -176,38 +170,6 @@ function saveNow() {
 const spotify = createSpotify({ dataDir: DATA_DIR, port: PORT, onChange: () => broadcast() });
 
 // ---------------------------------------------------------------------------
-// Erreichbarkeit der Spieleserver (TCP-Verbindungstest)
-
-const serverStatus = {};
-
-function checkServer(srv) {
-  return new Promise((resolve) => {
-    const started = Date.now();
-    const socket = net.connect({ host: srv.host, port: srv.port });
-    const done = (online) => {
-      socket.destroy();
-      resolve({ online, latency: online ? Date.now() - started : null, checkedAt: Date.now() });
-    };
-    socket.setTimeout(2000);
-    socket.once('connect', () => done(true));
-    socket.once('timeout', () => done(false));
-    socket.once('error', () => done(false));
-  });
-}
-
-async function checkAllServers() {
-  const results = await Promise.all(
-    state.servers.filter((s) => s.host && s.port).map(async (s) => [s.id, await checkServer(s)])
-  );
-  let changed = false;
-  for (const [id, result] of results) {
-    if (serverStatus[id]?.online !== result.online) changed = true;
-    serverStatus[id] = result;
-  }
-  if (changed) broadcast();
-}
-
-// ---------------------------------------------------------------------------
 // Öffentlicher Zustand + Live-Updates per Server-Sent Events
 
 function publicState() {
@@ -220,13 +182,11 @@ function publicState() {
       spinnerIds: state.wheel.spinnerIds,
       spin: state.wheel.spin ? { ...state.wheel.spin, age: Date.now() - state.wheel.spin.startedAt } : null,
     },
-    schedule: state.schedule,
     players: lb.rowsInRosterOrder,
     leaderboard: { rows: lb.rows, games: lb.games, recent: lb.recent },
     polls: state.polls.map(pollView),
     tournaments: state.tournaments.map(tournamentView),
     teams: teamsView(),
-    servers: state.servers.map((s) => ({ ...s, status: serverStatus[s.id] || null })),
     achievements: achievements.publicView(state.users),
     music: spotify.publicView(),
     // Die Matrix selbst ist nicht öffentlich; ändert sich die Zahl, lädt das Dashboard sie neu.
@@ -493,9 +453,7 @@ async function handleApi(req, res, pathname) {
   if (method === 'POST' && parts.length === 1) {
     const item = { id: crypto.randomUUID(), ...sanitize(fields, await readBody(req), false) };
     list.push(item);
-    if (parts[0] === 'schedule') list.sort((a, b) => a.time.localeCompare(b.time));
     changed();
-    if (parts[0] === 'servers') checkAllServers();
     if (parts[0] === 'devices') monitor.tick();
     return sendJson(res, 201, item);
   }
@@ -506,16 +464,13 @@ async function handleApi(req, res, pathname) {
   if (method === 'PATCH') {
     Object.assign(list[index], sanitize(fields, await readBody(req), true));
     const item = list[index];
-    if (parts[0] === 'schedule') list.sort((a, b) => a.time.localeCompare(b.time));
     changed();
-    if (parts[0] === 'servers') checkAllServers();
     if (parts[0] === 'devices') monitor.tick();
     return sendJson(res, 200, item);
   }
 
   if (method === 'DELETE') {
-    const [removed] = list.splice(index, 1);
-    if (parts[0] === 'servers') delete serverStatus[removed.id];
+    list.splice(index, 1);
     changed();
     return sendJson(res, 200, { ok: true });
   }
@@ -2026,8 +1981,6 @@ server.listen(PORT, HOST, () => {
   console.log(`Daten werden gespeichert in ${DATA_FILE}`);
 });
 
-checkAllServers();
-setInterval(checkAllServers, SERVER_CHECK_INTERVAL).unref();
 refreshAllSteamGames().then(refreshSteamPlaying);
 setInterval(refreshAllSteamGames, STEAM_REFRESH).unref();
 setInterval(refreshSteamPlaying, 60 * 1000).unref();

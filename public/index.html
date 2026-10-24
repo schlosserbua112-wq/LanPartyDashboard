@@ -27,14 +27,11 @@
       </nav>
       <a href="/logout" id="logout">Abmelden</a>
     </div>
+    <span class="conn" id="conn"></span>
     <div class="clock" id="clock">--:--</div>
   </header>
 
   <main class="grid">
-    <section class="card" id="scheduleCard">
-      <h2>Zeitplan</h2>
-      <ol class="schedule" id="schedule"></ol>
-    </section>
 
     <section class="card wheel-card" id="wheelCard">
       <h2>Glücksrad <small id="wheelOpen"></small></h2>
@@ -153,10 +150,6 @@
       <p class="net-event" id="netEvent"></p>
     </section>
 
-    <section class="card" id="serversCard">
-      <h2>Server</h2>
-      <ul class="servers" id="servers"></ul>
-    </section>
 
     <!-- Nur für Nutzer mit dem Feature „Team-Generator“ -->
     <section class="card teams-card" id="teamsCard" hidden>
@@ -204,7 +197,6 @@
   <p class="toast" id="toast" hidden></p>
   <div class="music-toast" id="musicToast" hidden></div>
 
-  <footer class="ticker"><span id="ticker"></span><span class="conn" id="conn"></span></footer>
 
   <script src="/common.js"></script>
   <script src="/fx.js"></script>

@@ -37,12 +37,6 @@ function formData(form) {
 const del = (collection, id) => `<button class="icon danger" data-action="delete" data-collection="${collection}" data-id="${esc(id)}" title="Löschen">✕</button>`;
 
 const renderers = {
-  schedule: (s) => `<span class="time">${formatTime(s.time)}</span><span class="grow"><strong>${esc(s.title)}</strong> ${esc(s.note)}</span>${del('schedule', s.id)}`,
-  servers: (s) => {
-    const st = s.status;
-    const cls = !st ? 'unknown' : st.online ? 'online' : 'offline';
-    return `<span class="dot ${cls}"></span><span class="grow"><strong>${esc(s.name)}</strong> <small>${esc(s.host)}:${s.port}</small></span>${del('servers', s.id)}`;
-  },
   devices: (d) => {
     const t = netSnap && netSnap.targets.find((x) => x.key === 'dev:' + d.id);
     const q = NetUI.quality(t);

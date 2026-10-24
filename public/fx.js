@@ -120,10 +120,7 @@ const FX = (() => {
     unvote: () => { tone(990, 0.08, { vol: 0.15 }); tone(660, 0.14, { vol: 0.15, delay: 0.07 }); },
     pop: () => tone(420, 0.08, { vol: 0.2, slide: 900 }),
     remove: () => tone(700, 0.1, { type: 'triangle', vol: 0.12, slide: 250 }),
-    coin: () => { tone(988, 0.07, { type: 'square', vol: 0.07 }); tone(1319, 0.3, { type: 'square', vol: 0.07, delay: 0.07 }); },
     chime: () => { tone(880, 1.2, { vol: 0.15 }); tone(1320, 1.4, { vol: 0.08, delay: 0.12 }); },
-    up: () => { tone(523, 0.1, { type: 'triangle', vol: 0.15 }); tone(784, 0.25, { type: 'triangle', vol: 0.15, delay: 0.09 }); },
-    down: () => { tone(392, 0.15, { type: 'sawtooth', vol: 0.06 }); tone(262, 0.35, { type: 'sawtooth', vol: 0.06, delay: 0.14 }); },
     error: () => { tone(180, 0.12, { type: 'square', vol: 0.08 }); tone(150, 0.18, { type: 'square', vol: 0.08, delay: 0.14 }); },
   };
 

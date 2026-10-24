@@ -1,6 +1,6 @@
 # LAN-Party-Dashboard
 
-Ein schlankes Dashboard für LAN-Partys, gebaut für den Raspberry Pi. Ein Bildschirm oder Beamer zeigt Zeitplan, Glücksrad, das globale Leaderboard, laufende Abstimmungen und den Status der Spieleserver. Alles aktualisiert sich live, sobald jemand im Admin-Bereich etwas ändert.
+Ein schlankes Dashboard für LAN-Partys, gebaut für den Raspberry Pi. Ein Bildschirm oder Beamer zeigt Glücksrad, das globale Leaderboard, laufende Abstimmungen und Turniere sowie den Zustand des Netzwerks. Alles aktualisiert sich live, sobald jemand im Admin-Bereich etwas ändert.
 
 | Seite | Wofür |
 |---|---|
@@ -94,7 +94,7 @@ Die Töne hängen am gemeinsamen 🔊-Knopf (Taste **M**). Damit die TV-Anzeige 
 
 ## Animationen und Sound
 
-Glücksrad (Tick am Zeiger, Konfetti und Fanfare beim Ergebnis), Abstimmungen (wachsende Balken, Sieger mit Krone), Zeitplan und Server melden Änderungen mit kurzen Effekten. Die Töne erzeugt der Browser selbst, es gibt keine Audiodateien. Der Lautsprecher-Knopf oben (oder die Taste **M**) schaltet den Ton pro Gerät stumm. Wer im Betriebssystem „Bewegung reduzieren“ eingestellt hat, bekommt keine Animationen.
+Glücksrad (Tick am Zeiger, Konfetti und Fanfare beim Ergebnis) und Abstimmungen (wachsende Balken, Sieger mit Krone) haben eigene Animationen und Töne. Die Töne erzeugt der Browser selbst, es gibt keine Audiodateien. Der Lautsprecher-Knopf oben (oder die Taste **M**) schaltet den Ton pro Gerät stumm. Wer im Betriebssystem „Bewegung reduzieren“ eingestellt hat, bekommt keine Animationen.
 
 Neue Features nutzen dafür `public/fx.js` (vor dem eigenen Skript einbinden):
 
@@ -176,7 +176,6 @@ Bei der Docker-Variante den Pfad zu `kiosk.sh` entsprechend anpassen. Unter Wayl
 | `ADMIN_PASSWORD` | `lanparty` | Passwort für `/admin`. Unbedingt ändern! |
 | `PORT` | `8080` | HTTP-Port |
 | `DATA_DIR` | `./data` | Ordner für `state.json` |
-| `SERVER_CHECK_INTERVAL` | `30` | Sekunden zwischen den Server-Checks |
 | `SPOTIFY_CLIENT_ID` | – | Client ID der Spotify-App (sonst im Admin eintragen) |
 | `SPOTIFY_REDIRECT_URI` | `http://127.0.0.1:<PORT>/api/spotify/callback` | Rücksprung-Adresse, muss in der Spotify-App eingetragen sein |
 | `STEAM_API_KEY` | – | Steam-Web-API-Schlüssel (sonst im Admin-Reiter **Steam** eintragen) |
@@ -186,6 +185,4 @@ Bei der Docker-Variante den Pfad zu `kiosk.sh` entsprechend anpassen. Unter Wayl
 ## Hinweise
 
 - Im Docker-Container darf `ping` ohne Root nicht senden. Das Netzwerk-Monitoring misst dann die Zeit für einen TCP-Verbindungsaufbau; die Geräteerkennung per ARP funktioniert nur mit `network_mode: host`. Auf dem Pi direkt (systemd) gibt es echte Ping-Zeiten.
-- Der Server-Status prüft per **TCP**, ob ein Port offen ist. Reine UDP-Server lassen sich so nicht prüfen; trage dafür einen TCP-Port desselben Hosts ein (z.B. RCON).
-- Die Zeitangaben im Zeitplan richten sich nach der Uhr des Browsers, der die Anzeige darstellt.
 - Lokal entwickeln: `npm run dev` (Node 18+), dann http://localhost:8080 öffnen.
