@@ -28,6 +28,22 @@ Im Admin-Bereich gibt es den Reiter **Nutzer**. Dort legst du Nutzer mit Nutzern
 - **Umschalter Admin-Modus / Nutzermodus**: Admins wechseln oben zwischen `/admin` und dem Dashboard. Wer mit dem Master-Passwort angemeldet ist, sieht im Nutzermodus alle Features.
 - **Neuer Link** macht den alten Link ungültig und meldet den Nutzer überall ab. **Löschen** entfernt den Nutzer samt Zugang.
 
+## Animationen und Sound
+
+Glücksrad (Tick am Zeiger, Konfetti und Fanfare beim Ergebnis), Abstimmungen (wachsende Balken, Sieger mit Krone), Rangliste (Plätze tauschen weich, „+5“ steigt auf), Zeitplan und Server melden Änderungen mit kurzen Effekten. Die Töne erzeugt der Browser selbst, es gibt keine Audiodateien. Der Lautsprecher-Knopf oben (oder die Taste **M**) schaltet den Ton pro Gerät stumm. Wer im Betriebssystem „Bewegung reduzieren“ eingestellt hat, bekommt keine Animationen.
+
+Neue Features nutzen dafür `public/fx.js` (vor dem eigenen Skript einbinden):
+
+```js
+FX.sound('win');                      // tick, spin, win, vote, unvote, pop, remove, coin, chime, up, down, error
+FX.confettiAt(element);               // Konfetti aus der Mitte eines Elements
+FX.bump(element, 'fx-pop');           // fx-pop, fx-glow, fx-enter, fx-shake, fx-press, fx-flash-ok, fx-flash-bad
+FX.floatText(element, '+5');          // aufsteigender Text
+FX.flip(liste, () => { /* neu rendern */ });   // Umsortieren animieren (Kinder mit data-key)
+FX.bars(liste, () => { /* neu rendern */ });   // Balken mit data-key und data-w (Prozent) wachsen lassen
+const vorher = FX.track('schluessel', wert);  // vorheriger Wert, undefined beim ersten Aufruf
+```
+
 ## Warum dieser Stack
 
 - **Node.js ohne eine einzige npm-Abhängigkeit.** Kein `npm install`, keine nativen Module, die auf ARM kompiliert werden müssten. Läuft auf jedem Pi ab Modell 3 (arm64 und armv7) mit rund 50 MB RAM.
@@ -86,6 +102,8 @@ EOT
 ```
 
 Bei der Docker-Variante den Pfad zu `kiosk.sh` entsprechend anpassen. Unter Wayland (Raspberry Pi OS Bookworm) den Bildschirmschoner zusätzlich in `raspi-config` unter *Display Options → Screen Blanking* abschalten.
+
+`kiosk.sh` startet Chromium so, dass die Soundeffekte auch ohne Klick auf dem Bildschirm laufen. Lautsprecher am Pi anschließen (HDMI-Ton reicht).
 
 ## Konfiguration
 

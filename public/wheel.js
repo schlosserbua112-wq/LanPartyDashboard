@@ -12,6 +12,13 @@ function createWheel(canvas, onStatus) {
   let rotation = 0;
   let anim = null;
   let shownSpinId = null;
+  let winner = null; // Index des Gewinnerfelds, solange das Ergebnis steht
+  let celebrateStart = -Infinity; // Gewinnerfeld nach einer Live-Drehung pulsieren lassen
+  let lastSegment = null;
+  let lastTick = 0;
+  let kick = 0; // Ausschlag des Zeigers beim Überfahren einer Feldgrenze
+  const CELEBRATE_MS = 4000;
+  const fx = typeof FX !== 'undefined' ? FX : null;
 
   const easeOut = (t) => 1 - Math.pow(1 - t, 4);
 
@@ -65,6 +72,11 @@ function createWheel(canvas, onStatus) {
       ctx.rotate(rotation);
       const fontSize = Math.max(10, Math.min(size * 0.055, (seg * r) / 2.2));
       ctx.font = `600 ${fontSize}px system-ui, sans-serif`;
+      const since = performance.now() - celebrateStart;
+      const celebrating = winner !== null && since < CELEBRATE_MS;
+      // Ein- und ausblenden, dazwischen pulsieren
+      const glow = celebrating ? Math.min(1, since / 300, (CELEBRATE_MS - since) / 600) : 0;
+      const pulse = celebrating ? (Math.sin(since / 110) + 1) / 2 : 0;
       entries.forEach((entry, i) => {
         ctx.beginPath();
         ctx.moveTo(0, 0);
@@ -78,6 +90,10 @@ function createWheel(canvas, onStatus) {
         ctx.strokeStyle = '#0b0f1a';
         ctx.lineWidth = 2;
         ctx.stroke();
+        if (winner !== null && i !== winner && glow) {
+          ctx.fillStyle = `rgba(11, 15, 26, ${0.55 * glow})`;
+          ctx.fill();
+        }
 
         ctx.save();
         ctx.rotate((i + 0.5) * seg);
@@ -89,6 +105,18 @@ function createWheel(canvas, onStatus) {
         ctx.fillText(fitText(ctx, entry.text, r - inset - size * 0.08), r - inset, 0);
         ctx.restore();
       });
+      if (winner !== null && winner < entries.length) {
+        ctx.beginPath();
+        ctx.moveTo(0, 0);
+        ctx.arc(0, 0, r, winner * seg, (winner + 1) * seg);
+        ctx.closePath();
+        ctx.strokeStyle = '#ffffff';
+        ctx.lineWidth = 3 + 4 * glow * pulse;
+        ctx.shadowColor = '#ffffff';
+        ctx.shadowBlur = 25 * glow * pulse;
+        ctx.stroke();
+        ctx.shadowBlur = 0;
+      }
     }
     ctx.restore();
 
@@ -101,32 +129,66 @@ function createWheel(canvas, onStatus) {
     ctx.lineWidth = 3;
     ctx.stroke();
 
-    // Zeiger oben
+    // Zeiger oben, schlägt an Feldgrenzen kurz gegen die Drehrichtung aus
     const p = Math.max(10, size * 0.045);
+    ctx.save();
+    ctx.translate(c, c - r - p * 0.9);
+    ctx.rotate(-0.45 * kick);
     ctx.beginPath();
-    ctx.moveTo(c - p, c - r - p * 0.9);
-    ctx.lineTo(c + p, c - r - p * 0.9);
-    ctx.lineTo(c, c - r + p * 1.2);
+    ctx.moveTo(-p, 0);
+    ctx.lineTo(p, 0);
+    ctx.lineTo(0, p * 2.1);
     ctx.closePath();
     ctx.fillStyle = '#e8ecf8';
     ctx.fill();
     ctx.strokeStyle = '#0b0f1a';
     ctx.lineWidth = 2;
     ctx.stroke();
+    ctx.restore();
+  }
+
+  // Feld, das gerade unter dem Zeiger steht
+  function segmentAtPointer() {
+    const seg = (Math.PI * 2) / entries.length;
+    const a = ((-Math.PI / 2 - rotation) % (Math.PI * 2) + Math.PI * 2) % (Math.PI * 2);
+    return Math.floor(a / seg);
   }
 
   function frame() {
     if (!anim) return;
     const t = Math.min(1, (performance.now() - anim.start) / anim.duration);
     rotation = anim.target * easeOut(t);
+    if (entries.length > 1) {
+      const s = segmentAtPointer();
+      if (s !== lastSegment) {
+        lastSegment = s;
+        kick = 1;
+        const now = performance.now();
+        if (now - lastTick > 45) {
+          lastTick = now;
+          fx && fx.sound('tick', { minGap: 0 });
+        }
+      }
+    }
+    kick *= 0.82;
     draw();
     if (t < 1) {
       requestAnimationFrame(frame);
     } else {
       const spin = anim.spin;
       anim = null;
-      onStatus && onStatus({ spinning: false, spin });
+      kick = 0;
+      winner = spin.winnerIndex;
+      celebrateStart = performance.now();
+      requestAnimationFrame(celebrate);
+      onStatus && onStatus({ spinning: false, spin, live: true });
     }
+  }
+
+  function celebrate() {
+    if (anim || winner === null) return;
+    draw();
+    if (performance.now() - celebrateStart < CELEBRATE_MS) requestAnimationFrame(celebrate);
   }
 
   function sameEntries(a, b) {
@@ -141,17 +203,23 @@ function createWheel(canvas, onStatus) {
       entries = spin.entries;
       if (spin.id !== shownSpinId && spin.age < spin.duration) {
         shownSpinId = spin.id;
+        winner = null;
+        lastSegment = null;
         anim = { spin, target: targetRotation(spin), duration: spin.duration, start: performance.now() - spin.age };
+        // Nur ein frischer Start bekommt den Schwung-Effekt, nicht das Nachladen.
+        if (spin.age < 1000) fx && fx.sound('spin');
         onStatus && onStatus({ spinning: true, spin });
         requestAnimationFrame(frame);
         return;
       }
       shownSpinId = spin.id;
       rotation = targetRotation(spin);
+      winner = spin.winnerIndex;
       onStatus && onStatus({ spinning: false, spin });
     } else {
       entries = wheel.entries;
       rotation = 0;
+      winner = null;
       onStatus && onStatus({ spinning: false, spin: null, lastResult: spin ? spin.result : null });
     }
     draw();
