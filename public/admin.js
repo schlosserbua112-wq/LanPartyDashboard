@@ -44,7 +44,6 @@ const renderers = {
     <button class="icon" data-action="points" data-id="${esc(p.id)}" data-delta="1">+</button>
     <button class="icon" data-action="points" data-id="${esc(p.id)}" data-delta="5">+5</button>
     ${del('players', p.id)}`,
-  games: (g) => `<span class="grow">${esc(g.name)}</span><span class="points">${g.votes} Stimmen</span>${del('games', g.id)}`,
   servers: (s) => {
     const st = s.status;
     const cls = !st ? 'unknown' : st.online ? 'online' : 'offline';
@@ -63,6 +62,7 @@ function render(next) {
       : '<li class="empty">Noch nichts eingetragen</li>';
   }
   renderWheelAdmin();
+  renderPollsAdmin();
   // Einstellungen nur befüllen, wenn gerade niemand darin tippt.
   const form = $('settingsForm');
   if (!form.contains(document.activeElement)) {
@@ -129,10 +129,6 @@ document.querySelectorAll('form[data-collection]').forEach((form) => {
     form.reset();
     form.querySelector('input').focus();
   });
-});
-
-$('resetVotes').addEventListener('click', () => {
-  if (confirm('Alle Stimmen zurücksetzen?')) api('POST', 'votes/reset');
 });
 
 $('admin').addEventListener('click', (e) => {
@@ -314,6 +310,58 @@ $('wheelEntryForm').addEventListener('submit', async (e) => {
 $('wheelEntries').addEventListener('click', (e) => {
   const btn = e.target.closest('button[data-entry]');
   if (btn) wheelApi('DELETE', 'entries/' + btn.dataset.entry);
+});
+
+// --- Abstimmungen ------------------------------------------------------------
+
+function pollBars(poll) {
+  const max = Math.max(1, ...poll.options.map((o) => o.votes));
+  return poll.options.map((o) => `<li><span class="name">${esc(o.text)}</span><span class="bar"><span style="width:${(o.votes / max) * 100}%"></span></span><span class="count">${o.votes}</span></li>`).join('');
+}
+
+function renderPollsAdmin() {
+  if (!state) return;
+  $('pollList').innerHTML = state.polls.length
+    ? state.polls.map((p) => `<li data-poll="${esc(p.id)}">
+        <div class="poll-head">
+          <strong>${esc(p.question)}</strong>
+          <span class="badge ${p.open ? '' : 'alt'}">${p.open ? 'läuft' : 'beendet'}</span>
+          <small>${p.total} ${p.total === 1 ? 'Stimme' : 'Stimmen'}</small>
+        </div>
+        <ul class="votes">${pollBars(p)}</ul>
+        <div class="toggle-row">
+          <button type="button" data-poll-action="toggle">${p.open ? 'Beenden' : 'Wieder öffnen'}</button>
+          <button type="button" class="secondary" data-poll-action="reset">Stimmen zurücksetzen</button>
+          <button type="button" class="icon danger" data-poll-action="delete">✕ Löschen</button>
+        </div>
+      </li>`).join('')
+    : '<li class="empty">Noch keine Abstimmungen</li>';
+}
+
+$('pollForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const form = e.target;
+  const options = form.elements.options.value.split('\n').map((s) => s.trim()).filter(Boolean);
+  const res = await fetch('/api/admin/polls', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...authHeaders() },
+    body: JSON.stringify({ question: form.elements.question.value, options }),
+  });
+  const data = await res.json().catch(() => ({}));
+  $('pollError').textContent = res.ok ? '' : data.error || 'Fehler';
+  if (res.ok) form.reset();
+});
+
+$('pollList').addEventListener('click', (e) => {
+  const btn = e.target.closest('button[data-poll-action]');
+  if (!btn) return;
+  const li = btn.closest('li[data-poll]');
+  const id = li.dataset.poll;
+  const poll = state.polls.find((p) => p.id === id);
+  const action = btn.dataset.pollAction;
+  if (action === 'toggle') api('PATCH', `polls/${id}`, { open: !poll.open });
+  if (action === 'reset' && confirm(`Alle Stimmen für „${poll.question}“ zurücksetzen?`)) api('POST', `polls/${id}/reset`);
+  if (action === 'delete' && confirm(`„${poll.question}“ löschen?`)) api('DELETE', `polls/${id}`);
 });
 
 // Beim Laden: gespeichertes Passwort oder Admin-Nutzer-Cookie prüfen.

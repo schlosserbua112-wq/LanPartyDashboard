@@ -66,12 +66,8 @@ function render(state) {
     ? ranked.slice(0, 12).map((p, i) => `<li><span class="rank">${i + 1}</span><span class="name">${esc(p.name)}${p.seat ? ` <small>Platz ${esc(p.seat)}</small>` : ''}</span><span class="points">${p.points}</span></li>`).join('')
     : '<li class="empty">Noch keine Spieler</li>';
 
-  const maxVotes = Math.max(1, ...state.games.map((g) => g.votes));
-  const games = [...state.games].sort((a, b) => b.votes - a.votes);
-  $('voteHint').textContent = `abstimmen auf ${location.host}/vote`;
-  $('votes').innerHTML = games.length
-    ? games.map((g) => `<li><span class="name">${esc(g.name)}</span><span class="bar"><span style="width:${(g.votes / maxVotes) * 100}%"></span></span><span class="count">${g.votes}</span></li>`).join('')
-    : '<li class="empty">Keine Spiele zur Wahl</li>';
+  renderPolls(state.polls);
+  if (me && hasFeature('abstimmungen')) loadMyVotes();
 
   $('servers').innerHTML = state.servers.length
     ? state.servers.map((srv) => {
@@ -82,6 +78,60 @@ function render(state) {
       }).join('')
     : '<li class="empty">Keine Server eingetragen</li>';
 }
+
+// --- Abstimmungen ------------------------------------------------------------
+
+let myVotes = {};
+
+// Laufende Abstimmungen zuerst, dazu die zuletzt beendete als Ergebnis.
+function visiblePolls(polls) {
+  const open = polls.filter((p) => p.open);
+  const lastClosed = polls.find((p) => !p.open);
+  return lastClosed ? [...open, lastClosed] : open;
+}
+
+function renderPolls(polls) {
+  const canVote = me && hasFeature('abstimmungen');
+  const shown = visiblePolls(polls);
+  $('polls').innerHTML = shown.length
+    ? shown.map((p) => {
+        const max = Math.max(1, ...p.options.map((o) => o.votes));
+        const voting = canVote && p.open;
+        const options = p.options.map((o) => {
+          const chosen = myVotes[p.id] === o.id;
+          const inner = `<span class="name">${chosen ? '✓ ' : ''}${esc(o.text)}</span><span class="bar"><span style="width:${(o.votes / max) * 100}%"></span></span><span class="count">${o.votes}</span>`;
+          return voting
+            ? `<li><button class="vote-option ${chosen ? 'chosen' : ''}" data-poll="${esc(p.id)}" data-option="${esc(o.id)}" title="${chosen ? 'Stimme zurückziehen' : 'Dafür stimmen'}">${inner}</button></li>`
+            : `<li>${inner}</li>`;
+        }).join('');
+        return `<div class="poll ${p.open ? '' : 'closed'}">
+          <h3>${esc(p.question)} <small>${p.open ? `${p.total} ${p.total === 1 ? 'Stimme' : 'Stimmen'}` : 'Ergebnis'}</small></h3>
+          <ul class="votes">${options}</ul>
+        </div>`;
+      }).join('')
+    : '<p class="empty">Gerade läuft keine Abstimmung</p>';
+}
+
+async function loadMyVotes() {
+  const res = await fetch('/api/polls/mine', { headers: auth });
+  if (!res.ok) return;
+  myVotes = await res.json();
+  if (current) renderPolls(current.polls);
+}
+
+$('polls').addEventListener('click', async (e) => {
+  const btn = e.target.closest('button[data-option]');
+  if (!btn) return;
+  const { poll, option } = btn.dataset;
+  // Nochmal auf die eigene Antwort klicken zieht die Stimme zurück.
+  const optionId = myVotes[poll] === option ? null : option;
+  const res = await fetch(`/api/polls/${poll}/vote`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...auth },
+    body: JSON.stringify({ optionId }),
+  });
+  if (res.ok) loadMyVotes();
+});
 
 // --- Angemeldete Nutzer ------------------------------------------------------
 
@@ -118,7 +168,7 @@ function enterUserMode(user) {
     });
   }
   // Das Glücksrad ist schon im Dashboard; die übrigen Features sind Platzhalter.
-  const others = me.features.filter((f) => f.enabled && f.key !== 'gluecksrad');
+  const others = me.features.filter((f) => f.enabled && f.key !== 'gluecksrad' && f.key !== 'abstimmungen');
   $('featuresCard').hidden = !others.length;
   document.body.classList.toggle('no-features', !others.length);
   $('features').innerHTML = others.map((f) => `<li><strong>${esc(f.label)}</strong><small>kommt bald</small></li>`).join('');

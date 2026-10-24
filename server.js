@@ -34,8 +34,7 @@ const DEFAULT_STATE = {
   },
   schedule: [],
   players: [],
-  games: [],
-  votes: {},
+  polls: [],
   servers: [],
   users: [],
   wheel: { open: true, entries: [], spinnerIds: [], spin: null },
@@ -44,6 +43,7 @@ const DEFAULT_STATE = {
 // Features, die der Admin pro Nutzer freischalten kann. Noch Platzhalter.
 const FEATURES = [
   { key: 'gluecksrad', label: 'Glücksrad' },
+  { key: 'abstimmungen', label: 'Abstimmungen' },
   { key: 'essen', label: 'Essensbestellung' },
   { key: 'wishlist', label: 'Wishlist' },
 ];
@@ -54,7 +54,6 @@ const SESSION_COOKIE = 'lp_session';
 const COLLECTIONS = {
   schedule: { time: str(32), title: str(120), note: str(200) },
   players: { name: str(60), seat: str(20), points: num },
-  games: { name: str(80) },
   servers: { name: str(60), host: str(255), port: num },
 };
 
@@ -82,7 +81,12 @@ function loadState() {
     for (const key of Object.keys(COLLECTIONS)) {
       if (Array.isArray(raw[key])) state[key] = raw[key];
     }
-    if (raw.votes && typeof raw.votes === 'object') state.votes = raw.votes;
+    if (Array.isArray(raw.polls)) {
+      state.polls = raw.polls;
+    } else if (Array.isArray(raw.games) && raw.games.length) {
+      // Frühere Spiele-Abstimmung als erste Umfrage übernehmen (ohne die anonymen Stimmen).
+      state.polls = [newPoll('Was spielen wir als Nächstes?', raw.games.map((g) => g.name))];
+    }
     if (Array.isArray(raw.users)) state.users = raw.users;
     if (raw.wheel && typeof raw.wheel === 'object') Object.assign(state.wheel, raw.wheel);
     return state;
@@ -145,8 +149,6 @@ async function checkAllServers() {
 // Öffentlicher Zustand + Live-Updates per Server-Sent Events
 
 function publicState() {
-  const tally = {};
-  for (const gameId of Object.values(state.votes)) tally[gameId] = (tally[gameId] || 0) + 1;
   return {
     settings: state.settings,
     wheel: {
@@ -157,9 +159,8 @@ function publicState() {
     },
     schedule: state.schedule,
     players: state.players,
-    games: state.games.map((g) => ({ ...g, votes: tally[g.id] || 0 })),
+    polls: state.polls.map(pollView),
     servers: state.servers.map((s) => ({ ...s, status: serverStatus[s.id] || null })),
-    totalVotes: Object.keys(state.votes).length,
   };
 }
 
@@ -302,7 +303,7 @@ const MIME = {
   '.json': 'application/json',
 };
 
-const PAGES = { '/': 'index.html', '/admin': 'admin.html', '/vote': 'vote.html' };
+const PAGES = { '/': 'index.html', '/admin': 'admin.html' };
 
 function serveStatic(req, res, pathname) {
   const rel = PAGES[pathname] || pathname.slice(1);
@@ -340,24 +341,7 @@ async function handleApi(req, res, pathname) {
 
   if (method === 'GET' && pathname === '/api/health') return sendJson(res, 200, { ok: true });
 
-  if (method === 'POST' && pathname === '/api/vote') {
-    const body = await readBody(req);
-    const clientId = String(body.clientId || '').slice(0, 64);
-    if (!clientId) return sendJson(res, 400, { error: 'clientId fehlt' });
-    if (body.gameId === null) {
-      delete state.votes[clientId];
-    } else {
-      if (!state.games.some((g) => g.id === body.gameId)) return sendJson(res, 400, { error: 'Unbekanntes Spiel' });
-      state.votes[clientId] = body.gameId;
-    }
-    changed();
-    return sendJson(res, 200, { ok: true });
-  }
-
-  if (method === 'GET' && pathname === '/api/vote') {
-    const clientId = new URL(req.url, 'http://x').searchParams.get('clientId') || '';
-    return sendJson(res, 200, { gameId: state.votes[clientId] || null });
-  }
+  if (pathname.startsWith('/api/polls/')) return handlePolls(req, res, method, pathname.split('/').slice(3));
 
   if (method === 'GET' && pathname === '/api/me') {
     const user = viewer(req);
@@ -398,12 +382,7 @@ async function handleApi(req, res, pathname) {
 
   if (parts[0] === 'users') return handleUsers(req, res, method, parts);
   if (parts[0] === 'wheel') return handleWheelAdmin(req, res, method, parts);
-
-  if (method === 'POST' && parts[0] === 'votes' && parts[1] === 'reset') {
-    state.votes = {};
-    changed();
-    return sendJson(res, 200, { ok: true });
-  }
+  if (parts[0] === 'polls') return handlePollsAdmin(req, res, method, parts);
 
   const fields = COLLECTIONS[parts[0]];
   if (!fields) return sendJson(res, 404, { error: 'Nicht gefunden' });
@@ -432,11 +411,6 @@ async function handleApi(req, res, pathname) {
 
   if (method === 'DELETE') {
     const [removed] = list.splice(index, 1);
-    if (parts[0] === 'games') {
-      for (const [client, gameId] of Object.entries(state.votes)) {
-        if (gameId === removed.id) delete state.votes[client];
-      }
-    }
     if (parts[0] === 'servers') delete serverStatus[removed.id];
     changed();
     return sendJson(res, 200, { ok: true });
@@ -501,6 +475,7 @@ async function handleUsers(req, res, method, parts) {
   if (method === 'DELETE' && parts.length === 2) {
     state.users.splice(state.users.indexOf(user), 1);
     state.wheel.spinnerIds = state.wheel.spinnerIds.filter((uid) => uid !== user.id);
+    for (const poll of state.polls) delete poll.votes[user.id];
     scheduleSave();
     return sendJson(res, 200, { ok: true });
   }
@@ -602,6 +577,105 @@ async function handleWheelAdmin(req, res, method, parts) {
   return sendJson(res, 404, { error: 'Nicht gefunden' });
 }
 
+// ---------------------------------------------------------------------------
+// Abstimmungen
+
+const MAX_POLL_OPTIONS = 12;
+
+function newPoll(question, options) {
+  return {
+    id: crypto.randomUUID(),
+    question,
+    options: options.map((text) => ({ id: crypto.randomUUID(), text })),
+    open: true,
+    createdAt: Date.now(),
+    votes: {}, // Nutzer-ID -> Antwort-ID
+  };
+}
+
+// Öffentlich nur die Summen, nicht wer wofür gestimmt hat.
+function pollView(poll) {
+  const counts = {};
+  for (const optionId of Object.values(poll.votes)) counts[optionId] = (counts[optionId] || 0) + 1;
+  return {
+    id: poll.id,
+    question: poll.question,
+    open: poll.open,
+    createdAt: poll.createdAt,
+    total: Object.keys(poll.votes).length,
+    options: poll.options.map((o) => ({ id: o.id, text: o.text, votes: counts[o.id] || 0 })),
+  };
+}
+
+async function handlePolls(req, res, method, parts) {
+  const user = viewer(req);
+  if (!user) return sendJson(res, 401, { error: 'Nicht angemeldet' });
+
+  // Die eigenen Stimmen, damit das Dashboard die gewählte Antwort markieren kann.
+  if (method === 'GET' && parts[0] === 'mine') {
+    const mine = {};
+    for (const poll of state.polls) if (poll.votes[user.id]) mine[poll.id] = poll.votes[user.id];
+    return sendJson(res, 200, mine);
+  }
+
+  if (method === 'POST' && parts[1] === 'vote' && parts.length === 2) {
+    if (!user.isAdmin && !user.features.abstimmungen) return sendJson(res, 403, { error: 'Kein Zugriff auf Abstimmungen' });
+    const poll = state.polls.find((p) => p.id === parts[0]);
+    if (!poll) return sendJson(res, 404, { error: 'Abstimmung nicht gefunden' });
+    if (!poll.open) return sendJson(res, 409, { error: 'Diese Abstimmung ist beendet' });
+    const { optionId } = await readBody(req);
+    if (optionId === null) {
+      delete poll.votes[user.id];
+    } else {
+      if (!poll.options.some((o) => o.id === optionId)) return sendJson(res, 400, { error: 'Unbekannte Antwort' });
+      poll.votes[user.id] = optionId;
+    }
+    changed();
+    return sendJson(res, 200, { ok: true });
+  }
+
+  return sendJson(res, 404, { error: 'Nicht gefunden' });
+}
+
+async function handlePollsAdmin(req, res, method, parts) {
+  if (method === 'POST' && parts.length === 1) {
+    const body = await readBody(req);
+    const question = str(150)(body.question);
+    const options = [...new Set((Array.isArray(body.options) ? body.options : []).map(str(80)).filter(Boolean))];
+    if (!question) return sendJson(res, 400, { error: 'Frage fehlt' });
+    if (options.length < 2) return sendJson(res, 400, { error: 'Mindestens zwei Antworten nötig' });
+    if (options.length > MAX_POLL_OPTIONS) return sendJson(res, 400, { error: `Höchstens ${MAX_POLL_OPTIONS} Antworten` });
+    const poll = newPoll(question, options);
+    state.polls.unshift(poll);
+    changed();
+    return sendJson(res, 201, pollView(poll));
+  }
+
+  const poll = state.polls.find((p) => p.id === parts[1]);
+  if (!poll) return sendJson(res, 404, { error: 'Abstimmung nicht gefunden' });
+
+  if (method === 'PATCH' && parts.length === 2) {
+    const body = await readBody(req);
+    if ('open' in body) poll.open = Boolean(body.open);
+    changed();
+    return sendJson(res, 200, pollView(poll));
+  }
+
+  if (method === 'POST' && parts[2] === 'reset') {
+    poll.votes = {};
+    changed();
+    return sendJson(res, 200, pollView(poll));
+  }
+
+  if (method === 'DELETE' && parts.length === 2) {
+    state.polls.splice(state.polls.indexOf(poll), 1);
+    changed();
+    return sendJson(res, 200, { ok: true });
+  }
+
+  return sendJson(res, 405, { error: 'Methode nicht erlaubt' });
+}
+
 function handleLogin(req, res, url) {
   const user = findUserByToken(url.searchParams.get('token'));
   if (!user) return redirect(res, '/?ungueltig=1');
@@ -618,7 +692,7 @@ const server = http.createServer(async (req, res) => {
     if (pathname.startsWith('/api/')) return await handleApi(req, res, pathname);
     if (req.method === 'GET' && pathname === '/login') return handleLogin(req, res, url);
     // Früherer Nutzerbereich: alles liegt jetzt im Dashboard.
-    if (req.method === 'GET' && pathname === '/me') return redirect(res, '/');
+    if (req.method === 'GET' && (pathname === '/me' || pathname === '/vote')) return redirect(res, '/');
     if (req.method === 'GET' && pathname === '/logout') {
       return redirect(res, '/', { 'Set-Cookie': `${SESSION_COOKIE}=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0` });
     }

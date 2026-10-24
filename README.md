@@ -1,11 +1,10 @@
 # LAN-Party-Dashboard
 
-Ein schlankes Dashboard für LAN-Partys, gebaut für den Raspberry Pi. Ein Bildschirm oder Beamer zeigt Zeitplan, Glücksrad, Rangliste, die Abstimmung über das nächste Spiel und den Status der Spieleserver. Alles aktualisiert sich live, sobald jemand im Admin-Bereich etwas ändert.
+Ein schlankes Dashboard für LAN-Partys, gebaut für den Raspberry Pi. Ein Bildschirm oder Beamer zeigt Zeitplan, Glücksrad, Rangliste, laufende Abstimmungen und den Status der Spieleserver. Alles aktualisiert sich live, sobald jemand im Admin-Bereich etwas ändert.
 
 | Seite | Wofür |
 |---|---|
 | `http://<pi>:8080/` | Dashboard: ohne Anmeldung TV-/Beamer-Anzeige, mit Anmeldung bedienen Nutzer hier ihre Features |
-| `http://<pi>:8080/vote` | Abstimmung per Handy, eine Stimme pro Gerät |
 | `http://<pi>:8080/admin` | Verwaltung (passwortgeschützt) |
 
 ## Nutzerverwaltung
@@ -13,7 +12,13 @@ Ein schlankes Dashboard für LAN-Partys, gebaut für den Raspberry Pi. Ein Bilds
 Im Admin-Bereich gibt es den Reiter **Nutzer**. Dort legst du Nutzer mit Nutzernamen an und schickst ihnen ihren persönlichen Link (`/login?token=…`). Wer den Link öffnet, ist auf diesem Gerät angemeldet und sieht im Dashboard seine Features.
 
 - **Admin**: Nutzer mit Admin-Haken kommen ohne Passwort in `/admin`. Das Master-Passwort aus `ADMIN_PASSWORD` funktioniert weiterhin.
-- **Features**: Pro Nutzer schaltest du Glücksrad, Essensbestellung und Wishlist frei. Essensbestellung und Wishlist sind noch Platzhalter.
+- **Features**: Pro Nutzer schaltest du Glücksrad, Abstimmungen, Essensbestellung und Wishlist frei. Essensbestellung und Wishlist sind noch Platzhalter.
+
+## Abstimmungen
+
+- Im Admin-Reiter **Abstimmungen** legst du Umfragen mit Frage und Antworten an, beendest sie, öffnest sie wieder, setzt Stimmen zurück oder löschst sie.
+- Nutzer mit dem Feature „Abstimmungen“ stimmen direkt im Dashboard ab: eine Stimme pro Umfrage, änderbar solange sie läuft. Nochmal auf die eigene Antwort klicken zieht die Stimme zurück.
+- Die TV-Anzeige zeigt alle laufenden Umfragen und das Ergebnis der zuletzt beendeten. Wer wofür gestimmt hat, ist nicht öffentlich.
 
 ## Glücksrad
 

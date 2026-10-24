@@ -186,7 +186,7 @@ ul, ol { list-style: none; margin: 0; padding: 0; }
 a { color: var(--accent); }
 .page h1 { margin-bottom: 0.8rem; }
 
-input, button {
+input, button, textarea {
   font: inherit;
   color: inherit;
   border-radius: 8px;
@@ -401,3 +401,38 @@ body.display.user-mode { height: auto; min-height: 100vh; overflow: visible; fon
   .user-mode .wheel-main .wheel-wrap { flex: none; height: min(85vw, 440px); }
   .user-mode .topbar { flex-wrap: wrap; }
 }
+
+/* ------------------------------------------------------- Abstimmungen */
+
+textarea { resize: vertical; }
+.polls { display: grid; gap: 1rem; overflow-y: auto; max-height: 100%; }
+.poll h3 { margin: 0 0 0.4rem; font-size: 1.05em; }
+.poll h3 small { font-weight: normal; margin-left: 0.4rem; }
+.poll.closed { opacity: 0.75; }
+.vote-option {
+  width: 100%;
+  display: grid;
+  grid-template-columns: minmax(8em, 14em) 1fr 2.5em;
+  align-items: center;
+  gap: 1rem;
+  padding: 0.35rem 0.5rem;
+  background: none;
+  color: var(--text);
+  font-weight: normal;
+  text-align: left;
+  border: 1px solid transparent;
+}
+.vote-option:hover { border-color: var(--line); background: var(--card-2); }
+.vote-option.chosen { border-color: var(--accent); background: var(--card-2); }
+.vote-option.chosen .name { color: var(--accent); font-weight: 600; }
+.votes li:has(> .vote-option) { display: block; padding: 0.1rem 0; }
+#votesCard { display: flex; flex-direction: column; }
+#votesCard .polls { flex: 1; min-height: 0; }
+
+.polls-layout { grid-template-columns: minmax(300px, 1fr) minmax(0, 2fr); align-items: start; }
+.poll-admin-list > li { border-top: 1px solid var(--line); padding: 0.9rem 0; display: grid; gap: 0.6rem; }
+.poll-admin-list > li:first-child { border-top: none; padding-top: 0; }
+.poll-head { display: flex; align-items: center; flex-wrap: wrap; gap: 0.6rem; }
+.poll-head .badge { margin-left: 0; }
+.poll-admin-list .toggle-row .danger { margin-left: auto; }
+@media (max-width: 900px) { .polls-layout { grid-template-columns: 1fr; } }

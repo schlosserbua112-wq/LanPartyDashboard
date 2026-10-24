@@ -23,12 +23,13 @@
         <a href="/admin" class="active" aria-current="page">Admin-Modus</a>
         <a href="/">Nutzermodus</a>
       </nav>
-      <nav><a href="/vote" target="_blank">Abstimmung</a> · <a href="#" id="logout">Abmelden</a></nav>
+      <nav><a href="#" id="logout">Abmelden</a></nav>
     </header>
 
     <nav class="tabs" id="tabs">
       <button type="button" data-view="dashboard" class="active">Dashboard</button>
       <button type="button" data-view="wheel">Glücksrad</button>
+      <button type="button" data-view="polls">Abstimmungen</button>
       <button type="button" data-view="users">Nutzer</button>
     </nav>
 
@@ -65,16 +66,6 @@
         <button>Hinzufügen</button>
       </form>
       <ul class="items" id="list-players"></ul>
-    </section>
-
-    <section class="card">
-      <h2>Spiele-Abstimmung</h2>
-      <form class="row" data-collection="games">
-        <input name="name" placeholder="Spiel, z.B. Age of Empires II" required>
-        <button>Hinzufügen</button>
-        <button type="button" class="secondary" id="resetVotes">Stimmen zurücksetzen</button>
-      </form>
-      <ul class="items" id="list-games"></ul>
     </section>
 
     <section class="card">
@@ -123,6 +114,24 @@
           <ul class="items scroll" id="wheelEntries"></ul>
         </section>
       </div>
+    </div>
+
+    <div class="view polls-layout" id="view-polls" hidden>
+      <section class="card">
+        <h2>Neue Abstimmung</h2>
+        <form id="pollForm" class="stack">
+          <label>Frage <input name="question" maxlength="150" required placeholder="z.B. Was spielen wir als Nächstes?"></label>
+          <label>Antworten, eine pro Zeile <textarea name="options" rows="6" required placeholder="Age of Empires II&#10;Trackmania&#10;Counter-Strike 2"></textarea></label>
+          <button>Abstimmung starten</button>
+          <p class="error" id="pollError"></p>
+        </form>
+        <p class="muted">Abstimmen können alle Nutzer mit dem Feature „Abstimmungen“, direkt im Dashboard. Jeder hat eine Stimme pro Abstimmung und kann sie ändern, solange sie läuft.</p>
+      </section>
+
+      <section class="card">
+        <h2>Abstimmungen</h2>
+        <ul class="poll-admin-list" id="pollList"></ul>
+      </section>
     </div>
 
     <div class="view" id="view-users" hidden>
