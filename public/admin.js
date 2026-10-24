@@ -61,6 +61,7 @@ function render(next) {
   tournaments.update(state.tournaments);
   renderAchievementsAdmin();
   renderTeamsAdmin();
+  if (window.renderMusicAdmin) renderMusicAdmin(state.music);
   // Einstellungen nur befüllen, wenn gerade niemand darin tippt.
   const form = $('settingsForm');
   if (!form.contains(document.activeElement)) {
@@ -148,6 +149,7 @@ $('tabs').addEventListener('click', (e) => {
     loadUsers();
     loadScoreHistory();
   }
+  if (btn.dataset.view === 'musik') loadMusicConfig();
   if (btn.dataset.view === 'wheel') {
     loadUsers();
     if (state) wheel.update(state.wheel);

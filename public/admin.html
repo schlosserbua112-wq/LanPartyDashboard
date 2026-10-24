@@ -34,6 +34,7 @@
       <button type="button" data-view="tournaments">Turniere</button>
       <button type="button" data-view="achievements">Achievements</button>
       <button type="button" data-view="teams">Teams</button>
+      <button type="button" data-view="musik">Musik</button>
       <button type="button" data-view="users">Nutzer</button>
     </nav>
 
@@ -275,6 +276,70 @@
       </section>
     </div>
 
+    <div class="view music-layout" id="view-musik" hidden>
+      <section class="card">
+        <h2>Spotify verbinden</h2>
+        <p class="status-pill" id="spotifyStatus"></p>
+        <div id="spotifySetup">
+          <ol class="steps">
+            <li>Öffne das <a href="https://developer.spotify.com/dashboard" target="_blank" rel="noopener">Spotify Developer Dashboard</a>, melde dich mit dem Account an, auf dem die Party-Musik läuft, und klicke <strong>Create app</strong>.</li>
+            <li>Name und Beschreibung sind egal. Trage als <strong>Redirect URI</strong> genau diese Adresse ein und hake <strong>Web API</strong> an:<br><code id="redirectUri"></code> <button type="button" class="icon" id="copyRedirect">Kopieren</button></li>
+            <li>Kopiere die <strong>Client ID</strong> der App hier hinein. Ein Client Secret brauchst du nicht.</li>
+          </ol>
+          <form id="spotifyConfig" class="stack">
+            <label>Client ID <input name="clientId" maxlength="64" autocomplete="off" placeholder="32 Zeichen, z.B. 1a2b3c…"></label>
+            <details>
+              <summary class="muted">Andere Redirect URI verwenden</summary>
+              <label class="stack">Redirect URI <input name="redirectUri" placeholder="leer lassen für den Standard"></label>
+            </details>
+            <button>Speichern</button>
+          </form>
+        </div>
+        <div class="toggle-row">
+          <button type="button" id="spotifyConnect">Mit Spotify verbinden</button>
+          <button type="button" class="secondary" id="spotifyDisconnect" hidden>Verbindung trennen</button>
+        </div>
+        <form id="spotifyCode" class="stack" hidden>
+          <p class="muted">Nach der Anmeldung zeigt der neue Tab eine Fehlerseite („Seite nicht erreichbar“). Das ist normal. Kopiere die <strong>komplette Adresse aus der Adresszeile</strong> dieses Tabs und füge sie hier ein:</p>
+          <input name="url" placeholder="http://127.0.0.1:…/api/spotify/callback?code=…" autocomplete="off" required>
+          <button>Verbindung abschließen</button>
+        </form>
+        <p class="error" id="spotifyError"></p>
+      </section>
+
+      <div class="wheel-side">
+        <section class="card">
+          <h2>Wiedergabe</h2>
+          <div id="adminNow"></div>
+          <div class="controls">
+            <button type="button" class="icon" data-music="previous" title="Zurück">⏮</button>
+            <button type="button" class="play" data-music="play" title="Abspielen">▶</button>
+            <button type="button" class="icon" data-music="pause" title="Pause">⏸</button>
+            <button type="button" class="icon" data-music="next" title="Weiter">⏭</button>
+            <label class="volume">🔊 <input type="range" min="0" max="100" id="adminVolume"></label>
+          </div>
+          <p class="error" id="musicControlError"></p>
+        </section>
+
+        <section class="card">
+          <h2>Gerät <button type="button" class="icon" id="loadDevices">Aktualisieren</button></h2>
+          <p class="muted">Spotify muss auf dem Musik-PC (oder Handy) laufen. Hier wählst du, wo gespielt wird.</p>
+          <ul class="devices" id="devices"></ul>
+        </section>
+
+        <section class="card">
+          <h2>Regeln</h2>
+          <form id="musicRules" class="stack">
+            <label>Stimmen zum Überspringen <input name="skipVotes" type="number" min="1" max="50" class="short"></label>
+            <label>Offene Wünsche pro Nutzer <input name="maxWishes" type="number" min="1" max="50" class="short"></label>
+            <label class="check"><input type="checkbox" name="usersCanControl"> Nutzer dürfen Pause, Vor, Zurück und Lautstärke steuern</label>
+            <button>Speichern</button>
+          </form>
+          <p class="muted">Wünschen und abstimmen können alle Nutzer mit dem Feature „Musik (Spotify)“. Admins dürfen immer alles.</p>
+        </section>
+      </div>
+    </div>
+
     <div class="view" id="view-users" hidden>
       <section class="card">
         <h2>Nutzer anlegen</h2>
@@ -301,5 +366,6 @@
   <script src="/achievements.js"></script>
   <script src="/teams.js"></script>
   <script src="/admin.js"></script>
+  <script src="/music-admin.js"></script>
 </body>
 </html>

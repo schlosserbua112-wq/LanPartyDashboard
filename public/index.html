@@ -9,6 +9,15 @@
 <body class="display">
   <header class="topbar">
     <h1 id="eventName">LAN-Party</h1>
+    <div class="now-playing" id="nowPlaying" hidden>
+      <img class="np-cover" id="npCover" alt="">
+      <div class="np-text">
+        <strong id="npTitle"></strong>
+        <small id="npArtist"></small>
+        <span class="np-progress"><span id="npProgress"></span></span>
+      </div>
+      <span class="eq" aria-hidden="true"><i></i><i></i><i></i><i></i></span>
+    </div>
     <div class="wifi" id="wifi"></div>
     <div class="user-bar" id="userBar" hidden>
       <span>Hallo <strong id="username"></strong></span>
@@ -85,6 +94,27 @@
       </div>
     </section>
 
+    <!-- Nur für Nutzer mit dem Feature „Musik“ -->
+    <section class="card music-card" id="musicCard" hidden>
+      <h2>Musik <small id="musicAccount"></small></h2>
+      <div class="music-body">
+        <div class="music-now" id="musicNow"></div>
+        <div class="music-queue">
+          <h3 class="side-title">Als Nächstes</h3>
+          <ol class="queue scroll" id="musicQueue"></ol>
+        </div>
+        <div class="music-search">
+          <h3 class="side-title">Song wünschen <small id="wishHint"></small></h3>
+          <form id="musicSearch" class="row">
+            <input name="q" maxlength="100" placeholder="Titel oder Künstler suchen" autocomplete="off" required>
+            <button>Suchen</button>
+          </form>
+          <p class="error" id="musicError"></p>
+          <ul class="results scroll" id="musicResults"></ul>
+        </div>
+      </div>
+    </section>
+
     <section class="card" id="serversCard">
       <h2>Server</h2>
       <ul class="servers" id="servers"></ul>
@@ -113,6 +143,7 @@
   </main>
 
   <p class="toast" id="toast" hidden></p>
+  <div class="music-toast" id="musicToast" hidden></div>
 
   <footer class="ticker"><span id="ticker"></span><span class="conn" id="conn"></span></footer>
 
@@ -123,6 +154,7 @@
   <script src="/tournament.js"></script>
   <script src="/achievements.js"></script>
   <script src="/teams.js"></script>
+  <script src="/music.js"></script>
   <script src="/display.js"></script>
 </body>
 </html>

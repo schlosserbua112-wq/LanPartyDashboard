@@ -13,6 +13,7 @@ try { password = sessionStorage.getItem('lanparty-admin'); } catch {}
 const auth = password ? { Authorization: 'Bearer ' + password } : {};
 
 const wheel = createWheel($('wheel'), renderWheelStatus);
+const music = createMusic({ auth });
 
 // Ohne Anmeldung (TV) wechselt das Leaderboard selbst zwischen den Spielen.
 const leaderboard = createLeaderboard(
@@ -99,6 +100,8 @@ function render(state) {
 
   teamReveal.update(state.teams.result);
   if (me && hasFeature('teams')) renderTeams(state.teams);
+
+  music.render(state.music);
 
   renderServers(state.servers);
 }
@@ -339,7 +342,8 @@ function enterUserMode(user) {
     });
   }
   // Das Glücksrad ist schon im Dashboard; die übrigen Features sind Platzhalter.
-  const others = me.features.filter((f) => f.enabled && !['gluecksrad', 'abstimmungen', 'turniere', 'teams'].includes(f.key));
+  music.enterUserMode(me, hasFeature('musik'));
+  const others = me.features.filter((f) => f.enabled && !['gluecksrad', 'abstimmungen', 'turniere', 'teams', 'musik'].includes(f.key));
   $('featuresCard').hidden = !others.length;
   document.body.classList.toggle('no-features', !others.length);
   $('features').innerHTML = others.map((f) => `<li><strong>${esc(f.label)}</strong><small>kommt bald</small></li>`).join('');
