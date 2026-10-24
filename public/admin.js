@@ -38,12 +38,6 @@ const del = (collection, id) => `<button class="icon danger" data-action="delete
 
 const renderers = {
   schedule: (s) => `<span class="time">${formatTime(s.time)}</span><span class="grow"><strong>${esc(s.title)}</strong> ${esc(s.note)}</span>${del('schedule', s.id)}`,
-  players: (p) => `<span class="grow"><strong>${esc(p.name)}</strong> ${p.seat ? `<small>Platz ${esc(p.seat)}</small>` : ''}</span>
-    <button class="icon" data-action="points" data-id="${esc(p.id)}" data-delta="-1">−</button>
-    <span class="points">${p.points}</span>
-    <button class="icon" data-action="points" data-id="${esc(p.id)}" data-delta="1">+</button>
-    <button class="icon" data-action="points" data-id="${esc(p.id)}" data-delta="5">+5</button>
-    ${del('players', p.id)}`,
   servers: (s) => {
     const st = s.status;
     const cls = !st ? 'unknown' : st.online ? 'online' : 'offline';
@@ -63,6 +57,7 @@ function render(next) {
   }
   renderWheelAdmin();
   renderPollsAdmin();
+  renderLeaderboardAdmin();
   // Einstellungen nur befüllen, wenn gerade niemand darin tippt.
   const form = $('settingsForm');
   if (!form.contains(document.activeElement)) {
@@ -134,12 +129,8 @@ document.querySelectorAll('form[data-collection]').forEach((form) => {
 $('admin').addEventListener('click', (e) => {
   const btn = e.target.closest('button[data-action]');
   if (!btn) return;
-  const { action, collection, id, delta } = btn.dataset;
+  const { action, collection, id } = btn.dataset;
   if (action === 'delete' && confirm('Wirklich löschen?')) api('DELETE', `${collection}/${id}`);
-  if (action === 'points') {
-    const player = state.players.find((p) => p.id === id);
-    if (player) api('PATCH', `players/${id}`, { points: player.points + Number(delta) });
-  }
 });
 
 // --- Ansichten -------------------------------------------------------------
@@ -150,6 +141,10 @@ $('tabs').addEventListener('click', (e) => {
   for (const b of $('tabs').querySelectorAll('button')) b.classList.toggle('active', b === btn);
   for (const v of document.querySelectorAll('.view')) v.hidden = v.id !== 'view-' + btn.dataset.view;
   if (btn.dataset.view === 'users') loadUsers();
+  if (btn.dataset.view === 'leaderboard') {
+    loadUsers();
+    loadScoreHistory();
+  }
   if (btn.dataset.view === 'wheel') {
     loadUsers();
     if (state) wheel.update(state.wheel);
@@ -198,6 +193,7 @@ async function loadUsers() {
   users = data.users;
   renderUsers(users);
   renderWheelAdmin();
+  renderLeaderboardAdmin();
 }
 
 $('userForm').addEventListener('submit', async (e) => {
@@ -362,6 +358,117 @@ $('pollList').addEventListener('click', (e) => {
   if (action === 'toggle') api('PATCH', `polls/${id}`, { open: !poll.open });
   if (action === 'reset' && confirm(`Alle Stimmen für „${poll.question}“ zurücksetzen?`)) api('POST', `polls/${id}/reset`);
   if (action === 'delete' && confirm(`„${poll.question}“ löschen?`)) api('DELETE', `polls/${id}`);
+});
+
+// --- Leaderboard ---------------------------------------------------------------
+
+const chosenPlayers = new Set();
+const SOURCE_ICONS = { manual: '⭐', tournament: '🏆', achievement: '🏅', game: '🎮' };
+const signed = (n) => (n > 0 ? `+${n}` : `${n}`);
+
+function renderLeaderboardAdmin() {
+  if (!state) return;
+  const lb = state.leaderboard;
+  for (const id of chosenPlayers) if (!state.players.some((p) => p.id === id)) chosenPlayers.delete(id);
+
+  $('scorePlayers').innerHTML = state.players.length
+    ? state.players.map((p) => `<button type="button" data-pick="${esc(p.id)}" class="${chosenPlayers.has(p.id) ? 'chosen' : ''}">${esc(p.name)}</button>`).join('')
+    : '<span class="empty">Noch keine Spieler</span>';
+  $('gameList').innerHTML = lb.games.map((g) => `<option value="${esc(g)}"></option>`).join('');
+
+  const userOptions = (selected) => `<option value="">kein Nutzer</option>${users.map((u) => `<option value="${esc(u.id)}" ${u.id === selected ? 'selected' : ''}>${esc(u.username)}</option>`).join('')}`;
+  $('list-players').innerHTML = state.players.length
+    ? state.players.map((p) => `<li data-player="${esc(p.id)}">
+        <span class="grow"><strong>${esc(p.name)}</strong> ${p.seat ? `<small>Platz ${esc(p.seat)}</small>` : ''}</span>
+        <select data-player-action="link" title="Mit Nutzer verknüpfen">${userOptions(p.userId)}</select>
+        <span class="lb-points-cell">${p.points}</span>
+        <button class="icon danger" data-player-action="delete" title="Spieler löschen">✕</button>
+      </li>`).join('')
+    : '<li class="empty">Noch keine Spieler</li>';
+
+  $('lbRanking').innerHTML = lb.rows.length
+    ? lb.rows.map((r) => `<li><span class="time">${r.rank}.</span><span class="grow"><strong>${esc(r.name)}</strong> <small>${r.count} ${r.count === 1 ? 'Buchung' : 'Buchungen'}</small></span><span class="lb-points-cell">${r.points}</span></li>`).join('')
+    : '<li class="empty">Noch keine Spieler</li>';
+
+  if (!$('view-leaderboard').hidden) loadScoreHistory();
+}
+
+let historyTimer = null;
+function loadScoreHistory() {
+  clearTimeout(historyTimer);
+  historyTimer = setTimeout(async () => {
+    const scores = await api('GET', 'scores');
+    $('scoreHistory').innerHTML = scores.length
+      ? scores.map((s) => `<li>
+          <span class="lb-points-cell ${s.points < 0 ? 'neg' : 'pos'}">${signed(s.points)}</span>
+          <span class="grow">${SOURCE_ICONS[s.source] || '⭐'} <strong>${esc(s.name)}</strong> ${esc([s.reason, s.game].filter(Boolean).join(' · '))}
+            <small>${new Date(s.at).toLocaleString('de-DE', { weekday: 'short', hour: '2-digit', minute: '2-digit' })}${s.by ? ` · ${esc(s.by)}` : ''}</small></span>
+          <button class="icon danger" data-score="${esc(s.id)}" title="Rückgängig">✕</button>
+        </li>`).join('')
+      : '<li class="empty">Noch keine Punkte vergeben</li>';
+  }, 150);
+}
+
+$('scorePlayers').addEventListener('click', (e) => {
+  const btn = e.target.closest('button[data-pick]');
+  if (!btn) return;
+  const id = btn.dataset.pick;
+  if (chosenPlayers.has(id)) chosenPlayers.delete(id);
+  else chosenPlayers.add(id);
+  btn.classList.toggle('chosen', chosenPlayers.has(id));
+});
+
+async function awardScore(points) {
+  const form = $('scoreForm');
+  const res = await fetch('/api/admin/scores', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...authHeaders() },
+    body: JSON.stringify({ playerIds: [...chosenPlayers], points, reason: form.elements.reason.value, game: form.elements.game.value }),
+  });
+  const data = await res.json().catch(() => ({}));
+  $('scoreError').textContent = res.ok ? '' : data.error || 'Fehler';
+  if (res.ok) form.elements.reason.value = '';
+}
+
+$('scoreForm').addEventListener('submit', (e) => {
+  e.preventDefault();
+  awardScore(Number(e.target.elements.points.value));
+});
+
+$('scoreQuick').addEventListener('click', (e) => {
+  const btn = e.target.closest('button[data-points]');
+  if (!btn) return;
+  $('scoreForm').elements.points.value = btn.dataset.points;
+  awardScore(Number(btn.dataset.points));
+});
+
+$('playerForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  await api('POST', 'players', formData(e.target));
+  e.target.reset();
+  e.target.elements.name.focus();
+});
+
+$('list-players').addEventListener('change', (e) => {
+  const select = e.target.closest('select[data-player-action="link"]');
+  if (select) api('PATCH', `players/${select.closest('li').dataset.player}`, { userId: select.value });
+});
+
+$('list-players').addEventListener('click', (e) => {
+  const btn = e.target.closest('button[data-player-action="delete"]');
+  if (!btn) return;
+  const li = btn.closest('li');
+  const name = li.querySelector('strong').textContent;
+  if (confirm(`${name} samt allen Punkten löschen?`)) api('DELETE', `players/${li.dataset.player}`);
+});
+
+$('scoreHistory').addEventListener('click', (e) => {
+  const btn = e.target.closest('button[data-score]');
+  if (btn) api('DELETE', `scores/${btn.dataset.score}`);
+});
+
+$('resetScores').addEventListener('click', () => {
+  if (confirm('Wirklich alle Punkte aller Spieler löschen? Die Spieler bleiben erhalten.')) api('POST', 'scores/reset');
 });
 
 // Beim Laden: gespeichertes Passwort oder Admin-Nutzer-Cookie prüfen.

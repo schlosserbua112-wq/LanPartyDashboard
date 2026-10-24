@@ -54,9 +54,11 @@
       <ul class="feature-list" id="features"></ul>
     </section>
 
-    <section class="card" id="leaderboardCard">
-      <h2>Rangliste</h2>
-      <ol class="leaderboard" id="leaderboard"></ol>
+    <section class="card lb-card" id="leaderboardCard">
+      <h2>Leaderboard <button type="button" class="lb-sound" id="lbSound"></button></h2>
+      <nav class="lb-tabs" id="lbTabs" hidden></nav>
+      <ol class="lb-list" id="leaderboard"></ol>
+      <ul class="lb-feed" id="lbFeed"></ul>
     </section>
 
     <section class="card" id="votesCard">
@@ -76,6 +78,7 @@
 
   <script src="/common.js"></script>
   <script src="/wheel.js"></script>
+  <script src="/leaderboard.js"></script>
   <script src="/display.js"></script>
 </body>
 </html>

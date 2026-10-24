@@ -14,6 +14,12 @@ const auth = password ? { Authorization: 'Bearer ' + password } : {};
 
 const wheel = createWheel($('wheel'), renderWheelStatus);
 
+// Ohne Anmeldung (TV) wechselt das Leaderboard selbst zwischen den Spielen.
+const leaderboard = createLeaderboard(
+  { list: $('leaderboard'), tabs: $('lbTabs'), feed: $('lbFeed'), sound: $('lbSound') },
+  { limit: 8, feed: 3, rotate: true },
+);
+
 function renderWheelStatus({ spinning, spin, lastResult }) {
   const el = $('wheelStatus');
   el.classList.toggle('result', Boolean(spin && !spinning));
@@ -61,10 +67,7 @@ function render(state) {
   if (me) renderWheelSide(state.wheel);
   wheel.update(state.wheel);
 
-  const ranked = [...state.players].sort((a, b) => b.points - a.points || a.name.localeCompare(b.name));
-  $('leaderboard').innerHTML = ranked.length
-    ? ranked.slice(0, 12).map((p, i) => `<li><span class="rank">${i + 1}</span><span class="name">${esc(p.name)}${p.seat ? ` <small>Platz ${esc(p.seat)}</small>` : ''}</span><span class="points">${p.points}</span></li>`).join('')
-    : '<li class="empty">Noch keine Spieler</li>';
+  leaderboard.update(state.leaderboard);
 
   renderPolls(state.polls);
   if (me && hasFeature('abstimmungen')) loadMyVotes();
@@ -159,6 +162,7 @@ function enterUserMode(user) {
   $('username').textContent = me.username;
   $('modeSwitch').hidden = !me.isAdmin;
   $('wheelSide').hidden = false;
+  leaderboard.setUser(me.master ? null : me.id, { rotate: false, limit: 12, feed: 5 });
   if (me.master) {
     // Abmelden vom Admin-Passwort: zurück in die Admin-Anmeldung.
     $('logout').addEventListener('click', (e) => {

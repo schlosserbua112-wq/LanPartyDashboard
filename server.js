@@ -34,6 +34,7 @@ const DEFAULT_STATE = {
   },
   schedule: [],
   players: [],
+  scores: [], // Punkte-Buchungen fürs globale Leaderboard
   polls: [],
   servers: [],
   users: [],
@@ -53,7 +54,6 @@ const SESSION_COOKIE = 'lp_session';
 // Erlaubte Felder je Sammlung und wie sie bereinigt werden.
 const COLLECTIONS = {
   schedule: { time: str(32), title: str(120), note: str(200) },
-  players: { name: str(60), seat: str(20), points: num },
   servers: { name: str(60), host: str(255), port: num },
 };
 
@@ -88,12 +88,30 @@ function loadState() {
       state.polls = [newPoll('Was spielen wir als Nächstes?', raw.games.map((g) => g.name))];
     }
     if (Array.isArray(raw.users)) state.users = raw.users;
+    if (Array.isArray(raw.players)) state.players = raw.players;
+    if (Array.isArray(raw.scores)) {
+      state.scores = raw.scores;
+    } else {
+      migrateToLeaderboard(state);
+    }
     if (raw.wheel && typeof raw.wheel === 'object') Object.assign(state.wheel, raw.wheel);
     return state;
   } catch (err) {
     if (err.code !== 'ENOENT') console.error('Konnte Daten nicht laden, starte leer:', err.message);
     return structuredClone(DEFAULT_STATE);
   }
+}
+
+// Frühere Rangliste: Punkte standen direkt am Spieler. Sie werden zur ersten
+// Buchung, und jeder Nutzer bekommt einen verknüpften Spieler.
+function migrateToLeaderboard(s) {
+  for (const p of s.players) {
+    const points = num(p.points);
+    delete p.points;
+    p.userId = p.userId || null;
+    if (points) s.scores.push(newScore(p.id, points, 'Startwert', '', 'manual', null, null));
+  }
+  for (const u of s.users) linkPlayer(s, u, true);
 }
 
 let state = loadState();
@@ -149,6 +167,7 @@ async function checkAllServers() {
 // Öffentlicher Zustand + Live-Updates per Server-Sent Events
 
 function publicState() {
+  const lb = leaderboardView();
   return {
     settings: state.settings,
     wheel: {
@@ -158,7 +177,8 @@ function publicState() {
       spin: state.wheel.spin ? { ...state.wheel.spin, age: Date.now() - state.wheel.spin.startedAt } : null,
     },
     schedule: state.schedule,
-    players: state.players,
+    players: lb.rowsInRosterOrder,
+    leaderboard: { rows: lb.rows, games: lb.games, recent: lb.recent },
     polls: state.polls.map(pollView),
     servers: state.servers.map((s) => ({ ...s, status: serverStatus[s.id] || null })),
   };
@@ -383,6 +403,8 @@ async function handleApi(req, res, pathname) {
   if (parts[0] === 'users') return handleUsers(req, res, method, parts);
   if (parts[0] === 'wheel') return handleWheelAdmin(req, res, method, parts);
   if (parts[0] === 'polls') return handlePollsAdmin(req, res, method, parts);
+  if (parts[0] === 'players') return handlePlayersAdmin(req, res, method, parts);
+  if (parts[0] === 'scores') return handleScoresAdmin(req, res, method, parts);
 
   const fields = COLLECTIONS[parts[0]];
   if (!fields) return sendJson(res, 404, { error: 'Nicht gefunden' });
@@ -442,7 +464,8 @@ async function handleUsers(req, res, method, parts) {
       createdAt: Date.now(),
     };
     state.users.push(user);
-    scheduleSave();
+    linkPlayer(state, user, true);
+    changed();
     return sendJson(res, 201, userView(user));
   }
 
@@ -458,10 +481,12 @@ async function handleUsers(req, res, method, parts) {
         return sendJson(res, 409, { error: 'Diesen Nutzernamen gibt es schon' });
       }
       user.username = username;
+      const player = state.players.find((p) => p.userId === user.id);
+      if (player) player.name = username;
     }
     if ('isAdmin' in body) user.isAdmin = Boolean(body.isAdmin);
     if ('features' in body) user.features = cleanFeatures({ ...user.features, ...body.features });
-    scheduleSave();
+    changed();
     return sendJson(res, 200, userView(user));
   }
 
@@ -476,7 +501,9 @@ async function handleUsers(req, res, method, parts) {
     state.users.splice(state.users.indexOf(user), 1);
     state.wheel.spinnerIds = state.wheel.spinnerIds.filter((uid) => uid !== user.id);
     for (const poll of state.polls) delete poll.votes[user.id];
-    scheduleSave();
+    // Der Spieler bleibt samt Punkten im Leaderboard, nur ohne Anmeldung.
+    for (const p of state.players) if (p.userId === user.id) p.userId = null;
+    changed();
     return sendJson(res, 200, { ok: true });
   }
 
@@ -669,6 +696,197 @@ async function handlePollsAdmin(req, res, method, parts) {
 
   if (method === 'DELETE' && parts.length === 2) {
     state.polls.splice(state.polls.indexOf(poll), 1);
+    changed();
+    return sendJson(res, 200, { ok: true });
+  }
+
+  return sendJson(res, 405, { error: 'Methode nicht erlaubt' });
+}
+
+// ---------------------------------------------------------------------------
+// Globales Leaderboard
+//
+// Punkte stehen nicht direkt am Spieler, sondern als Buchungen in state.scores.
+// So lässt sich jede Vergabe nachvollziehen und rückgängig machen, und spätere
+// Features (Turniere, Achievements, …) buchen über awardPoints() mit eigener
+// source und refId und können ihre Punkte per revokeScores(refId) zurücknehmen.
+
+const MAX_SCORES = 20000;
+const MAX_POINTS = 100000;
+const RECENT_SCORES = 8;
+const SCORE_SOURCES = new Set(['manual', 'tournament', 'achievement', 'game']);
+
+function newScore(playerId, points, reason, game, source, refId, by) {
+  return { id: crypto.randomUUID(), playerId, points, reason, game, source, refId, by, at: Date.now() };
+}
+
+// Sucht den Spieler eines Nutzers. Ein gleichnamiger Spieler ohne Nutzer wird
+// verknüpft; mit create entsteht sonst ein neuer.
+function linkPlayer(s, user, create) {
+  let player = s.players.find((p) => p.userId === user.id);
+  if (!player) {
+    player = s.players.find((p) => !p.userId && p.name.toLowerCase() === user.username.toLowerCase());
+    if (player) player.userId = user.id;
+  }
+  if (!player && create) {
+    player = { id: crypto.randomUUID(), name: user.username, seat: '', userId: user.id };
+    s.players.push(player);
+  }
+  return player || null;
+}
+
+// Gleiche Spielnamen in anderer Schreibweise zusammenführen ("cs2" -> "CS2").
+function canonicalGame(name) {
+  const game = str(40)(name);
+  if (!game) return '';
+  const lower = game.toLowerCase();
+  return state.scores.find((s) => s.game && s.game.toLowerCase() === lower)?.game || game;
+}
+
+function scoreError(message, status = 400) {
+  return Object.assign(new Error(message), { status });
+}
+
+// Vergibt Punkte an einen Spieler (playerId) oder an den Spieler eines Nutzers
+// (userId, wird bei Bedarf angelegt). Wirft Fehler mit status für die API.
+function awardPoints({ playerId, userId, points, reason = '', game = '', source = 'manual', refId = null, by = null }) {
+  let player = null;
+  if (playerId) player = state.players.find((p) => p.id === playerId);
+  else if (userId) {
+    const user = state.users.find((u) => u.id === userId);
+    if (user) player = linkPlayer(state, user, true);
+  }
+  if (!player) throw scoreError('Spieler nicht gefunden', 404);
+  const value = num(points);
+  if (!value) throw scoreError('Punkte fehlen');
+  if (Math.abs(value) > MAX_POINTS) throw scoreError(`Höchstens ${MAX_POINTS} Punkte auf einmal`);
+  if (state.scores.length >= MAX_SCORES) throw scoreError('Zu viele Buchungen, bitte Leaderboard zurücksetzen', 409);
+  const entry = newScore(
+    player.id, value, str(120)(reason), canonicalGame(game),
+    SCORE_SOURCES.has(source) ? source : 'manual', refId ? String(refId) : null, by ? str(40)(by) : null
+  );
+  state.scores.push(entry);
+  changed();
+  return entry;
+}
+
+// Nimmt alle Buchungen mit dieser refId zurück, z.B. wenn ein Turnier gelöscht wird.
+function revokeScores(refId) {
+  const before = state.scores.length;
+  state.scores = state.scores.filter((s) => s.refId !== String(refId));
+  if (state.scores.length !== before) changed();
+  return before - state.scores.length;
+}
+
+// Gleiche Punkte, gleicher Platz (1, 1, 3, …).
+function assignRanks(rows) {
+  rows.sort((a, b) => b.points - a.points || a.name.localeCompare(b.name, 'de'));
+  rows.forEach((r, i) => { r.rank = i && rows[i - 1].points === r.points ? rows[i - 1].rank : i + 1; });
+  return rows;
+}
+
+function leaderboardView() {
+  const totals = new Map(state.players.map((p) => [p.id, { points: 0, count: 0, games: {}, lastAt: null }]));
+  const games = new Set();
+  for (const s of state.scores) {
+    const t = totals.get(s.playerId);
+    if (!t) continue;
+    t.points += s.points;
+    t.count++;
+    t.lastAt = s.at;
+    if (s.game) {
+      t.games[s.game] = (t.games[s.game] || 0) + s.points;
+      games.add(s.game);
+    }
+  }
+  const rowsInRosterOrder = state.players.map((p) => ({ id: p.id, name: p.name, seat: p.seat, userId: p.userId || null, ...totals.get(p.id) }));
+  const names = new Map(state.players.map((p) => [p.id, p.name]));
+  const recent = state.scores.slice(-RECENT_SCORES).reverse()
+    .map(({ refId, ...s }) => ({ ...s, name: names.get(s.playerId) || '?' }));
+  return { rows: assignRanks([...rowsInRosterOrder]), rowsInRosterOrder, games: [...games], recent };
+}
+
+const PLAYER_FIELDS = { name: str(60), seat: str(20) };
+
+// userId: '' oder null trennt die Verknüpfung, sonst muss es den Nutzer geben.
+function applyPlayerUser(player, userId) {
+  if (!userId) {
+    player.userId = null;
+    return;
+  }
+  if (!state.users.some((u) => u.id === userId)) throw scoreError('Nutzer nicht gefunden', 404);
+  // Ein Nutzer gehört zu genau einem Spieler.
+  for (const p of state.players) if (p !== player && p.userId === userId) p.userId = null;
+  player.userId = userId;
+}
+
+async function handlePlayersAdmin(req, res, method, parts) {
+  if (method === 'POST' && parts.length === 1) {
+    const body = await readBody(req);
+    const fields = sanitize(PLAYER_FIELDS, body, false);
+    if (!fields.name) return sendJson(res, 400, { error: 'Name fehlt' });
+    const player = { id: crypto.randomUUID(), ...fields, userId: null };
+    applyPlayerUser(player, body.userId);
+    state.players.push(player);
+    if (num(body.points)) awardPoints({ playerId: player.id, points: body.points, reason: 'Startwert', by: 'Admin' });
+    changed();
+    return sendJson(res, 201, player);
+  }
+
+  const player = state.players.find((p) => p.id === parts[1]);
+  if (parts.length !== 2 || !player) return sendJson(res, 404, { error: 'Spieler nicht gefunden' });
+
+  if (method === 'PATCH') {
+    const body = await readBody(req);
+    Object.assign(player, sanitize(PLAYER_FIELDS, body, true));
+    if ('userId' in body) applyPlayerUser(player, body.userId);
+    // Früher wurde der Punktestand direkt gesetzt: als Buchung der Differenz übernehmen.
+    if ('points' in body) {
+      const current = state.scores.reduce((sum, s) => sum + (s.playerId === player.id ? s.points : 0), 0);
+      if (num(body.points) !== current) awardPoints({ playerId: player.id, points: num(body.points) - current, reason: 'Manuell angepasst', by: 'Admin' });
+    }
+    changed();
+    return sendJson(res, 200, player);
+  }
+
+  if (method === 'DELETE') {
+    state.players.splice(state.players.indexOf(player), 1);
+    state.scores = state.scores.filter((s) => s.playerId !== player.id);
+    changed();
+    return sendJson(res, 200, { ok: true });
+  }
+
+  return sendJson(res, 405, { error: 'Methode nicht erlaubt' });
+}
+
+async function handleScoresAdmin(req, res, method, parts) {
+  // Die letzten Buchungen mit Namen, für Verlauf und Rückgängig.
+  if (method === 'GET' && parts.length === 1) {
+    const names = new Map(state.players.map((p) => [p.id, p.name]));
+    return sendJson(res, 200, state.scores.slice(-300).reverse().map((s) => ({ ...s, name: names.get(s.playerId) || '?' })));
+  }
+
+  // Mehrere Spieler auf einmal, z.B. das ganze Siegerteam.
+  if (method === 'POST' && parts.length === 1) {
+    const body = await readBody(req);
+    const ids = [...new Set((Array.isArray(body.playerIds) ? body.playerIds : [body.playerId]).filter(Boolean).map(String))];
+    if (!ids.length) return sendJson(res, 400, { error: 'Bitte mindestens einen Spieler wählen' });
+    if (ids.some((id) => !state.players.some((p) => p.id === id))) return sendJson(res, 404, { error: 'Spieler nicht gefunden' });
+    const by = viewer(req)?.username || 'Admin';
+    const entries = ids.map((playerId) => awardPoints({ playerId, points: body.points, reason: body.reason, game: body.game, by }));
+    return sendJson(res, 201, entries);
+  }
+
+  if (method === 'POST' && parts[1] === 'reset' && parts.length === 2) {
+    state.scores = [];
+    changed();
+    return sendJson(res, 200, { ok: true });
+  }
+
+  if (method === 'DELETE' && parts.length === 2) {
+    const index = state.scores.findIndex((s) => s.id === parts[1]);
+    if (index === -1) return sendJson(res, 404, { error: 'Buchung nicht gefunden' });
+    state.scores.splice(index, 1);
     changed();
     return sendJson(res, 200, { ok: true });
   }
