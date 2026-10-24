@@ -43,6 +43,12 @@ const renderers = {
     const cls = !st ? 'unknown' : st.online ? 'online' : 'offline';
     return `<span class="dot ${cls}"></span><span class="grow"><strong>${esc(s.name)}</strong> <small>${esc(s.host)}:${s.port}</small></span>${del('servers', s.id)}`;
   },
+  devices: (d) => {
+    const t = netSnap && netSnap.targets.find((x) => x.key === 'dev:' + d.id);
+    const q = NetUI.quality(t);
+    const info = !t || t.ok === null ? 'prüfe…' : !t.ok ? 'offline' : t.quiet ? 'online, kein Ping' : `${NetUI.msText(t.latency)} ms`;
+    return `<span class="dot ${q === 'offline' ? 'offline' : q === 'unknown' ? '' : 'online'}"></span><span class="grow"><strong>${esc(d.name)}</strong> <span class="host">${esc(d.host)}</span></span>${t && t.loss ? `<span class="loss">${t.loss}% Verlust</span>` : ''}<span class="ms">${info}</span>${del('devices', d.id)}`;
+  },
 };
 
 let state = null;
@@ -62,9 +68,10 @@ function render(next) {
   renderAchievementsAdmin();
   renderTeamsAdmin();
   if (window.renderMusicAdmin) renderMusicAdmin(state.music);
+  renderNetTests();
   // Einstellungen nur befüllen, wenn gerade niemand darin tippt.
-  const form = $('settingsForm');
-  if (!form.contains(document.activeElement)) {
+  for (const form of [$('settingsForm'), $('netSettingsForm')]) {
+    if (form.contains(document.activeElement)) continue;
     for (const [key, value] of Object.entries(state.settings)) {
       if (form.elements[key]) form.elements[key].value = value;
     }
@@ -114,6 +121,12 @@ $('logout').addEventListener('click', (e) => {
 });
 
 // --- Aktionen --------------------------------------------------------------
+
+$('netSettingsForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  await api('PUT', 'settings', formData(e.target));
+  document.activeElement.blur();
+});
 
 $('settingsForm').addEventListener('submit', async (e) => {
   e.preventDefault();
@@ -775,6 +788,94 @@ $('steamUsers').addEventListener('click', async (e) => {
     btn.disabled = false;
   }
   loadSteam();
+});
+
+// --- Netzwerk ----------------------------------------------------------------
+
+let netSnap = null;
+
+function renderNetAdmin() {
+  if (!netSnap) return;
+  const core = ['internet', 'router', 'dns'].map((k) => netSnap.targets.find((t) => t.key === k)).filter(Boolean);
+  const wan = netSnap.wan;
+  const tile = (name, q, value, sub) => `<div class="net-tile ${q}"><div class="net-tile-head"><span class="pulse-dot"></span><span>${esc(name)}</span></div><div class="net-tile-value"><span class="v">${value}</span></div><div class="net-tile-foot"><span>${sub}</span></div></div>`;
+  $('netAdminTiles').innerHTML = core.map((t) => tile(
+    t.name,
+    NetUI.quality(t),
+    !t.ok ? (t.ok === null ? '…' : 'offline') : t.latency == null ? 'online' : `${NetUI.msText(t.latency)} ms`,
+    `${esc(t.host)}${t.loss ? ` · ${t.loss}% Verlust` : ''}`,
+  )).join('') + tile(
+    'FritzBox',
+    wan.available ? 'online' : wan.available === false ? 'offline' : 'unknown',
+    wan.available ? `↓ ${NetUI.mbitText(NetUI.rateMbit(wan.down))}` : wan.available === false ? 'kein UPnP' : '…',
+    wan.available ? `↑ ${NetUI.mbitText(NetUI.rateMbit(wan.up))} Mbit/s` : 'Durchsatz',
+  );
+  $('netWanHint').hidden = wan.available !== false;
+  $('netCheckedAt').textContent = netSnap.checkedAt ? `zuletzt ${new Date(netSnap.checkedAt).toLocaleTimeString('de-DE')}` : '';
+  $('netModeTip').textContent = netSnap.mode === 'tcp'
+    ? 'Messung per TCP-Verbindungstest, weil „ping“ hier nicht nutzbar ist (z.B. im Docker-Container). Die Zeiten sind etwas höher als beim echten Ping.'
+    : `Messung per Ping alle ${netSnap.interval / 1000} Sekunden.`;
+  $('netLog').innerHTML = netSnap.events.length
+    ? netSnap.events.map((ev) => `<li><time>${new Date(ev.at).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })}</time><span class="${ev.type}">${ev.type === 'down' ? '⚠' : '✓'} ${esc(ev.text)}</span></li>`).join('')
+    : '<li class="empty">Bisher keine Ausfälle</li>';
+  if (state) {
+    $('list-devices').innerHTML = state.devices.length
+      ? state.devices.map((d) => `<li>${renderers.devices(d)}</li>`).join('')
+      : '<li class="empty">Noch nichts eingetragen</li>';
+  }
+}
+
+window.addEventListener('lp:net', (e) => {
+  const prev = netSnap;
+  netSnap = e.detail;
+  renderNetAdmin();
+  if (prev && netSnap.events[0] && (!prev.events[0] || netSnap.events[0].at > prev.events[0].at)) {
+    if (netSnap.events[0].type === 'down') NetUI.sound.down(); else NetUI.sound.up();
+  }
+});
+
+function renderNetTests() {
+  if (!state) return;
+  $('netTestList').innerHTML = state.netTests.length
+    ? state.netTests.map((t) => `<li><span class="grow"><strong>${esc(t.username)}</strong> <small>${new Date(t.at).toLocaleString('de-DE', { dateStyle: 'short', timeStyle: 'short' })}</small></span><span>↓ ${NetUI.mbitText(t.down)}</span><span>↑ ${NetUI.mbitText(t.up)} Mbit/s</span><span class="ms">${NetUI.msText(t.ping)} ms</span></li>`).join('')
+    : '<li class="empty">Noch keine Tests</li>';
+  $('netClearTests').hidden = !state.netTests.length;
+}
+
+$('netClearTests').addEventListener('click', () => {
+  if (confirm('Alle Ergebnisse der Verbindungstests löschen?')) api('DELETE', 'net/tests');
+});
+
+let found = [];
+
+function renderFound() {
+  const known = new Set(state ? state.devices.map((d) => d.host) : []);
+  $('netFound').innerHTML = found.length
+    ? found.map((d, i) => `<li><span class="grow"><strong>${esc(d.name || 'Unbekannt')}</strong> <span class="host">${esc(d.ip)} · ${esc(d.mac)}</span></span>${known.has(d.ip) || (d.name && known.has(d.name)) ? '<small>schon dabei</small>' : `<button type="button" class="icon" data-found="${i}">+ Hinzufügen</button>`}</li>`).join('')
+    : '<li class="empty">Keine Geräte gefunden</li>';
+}
+
+$('netDiscover').addEventListener('click', async () => {
+  const btn = $('netDiscover');
+  btn.disabled = true;
+  btn.textContent = 'Suche läuft…';
+  try {
+    found = (await api('GET', 'net/discover')).devices;
+    renderFound();
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Nochmal durchsuchen';
+  }
+});
+
+$('netFound').addEventListener('click', async (e) => {
+  const btn = e.target.closest('button[data-found]');
+  if (!btn) return;
+  const d = found[Number(btn.dataset.found)];
+  const name = prompt('Name für das Gerät:', d.name || d.ip);
+  if (name === null) return;
+  await api('POST', 'devices', { name: name || d.ip, host: d.ip });
+  setTimeout(renderFound, 300);
 });
 
 // Beim Laden: gespeichertes Passwort oder Admin-Nutzer-Cookie prüfen.

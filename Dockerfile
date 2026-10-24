@@ -6,7 +6,7 @@ ENV NODE_ENV=production \
     DATA_DIR=/data
 
 WORKDIR /app
-COPY package.json server.js achievements.js spotify.js ./
+COPY package.json server.js achievements.js spotify.js netmon.js ./
 COPY public ./public
 
 RUN mkdir -p /data && chown node:node /data

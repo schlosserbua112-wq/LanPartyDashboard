@@ -87,6 +87,7 @@ function render(state) {
 
   leaderboard.update(state.leaderboard);
 
+  NetUI.renderTests(state.netTests);
   renderPolls(state.polls);
 
   const hasTournament = state.tournaments.length > 0;
@@ -344,7 +345,7 @@ function enterUserMode(user) {
   }
   // Das Glücksrad ist schon im Dashboard; die übrigen Features sind Platzhalter.
   music.enterUserMode(me, hasFeature('musik'));
-  const others = me.features.filter((f) => f.enabled && !['gluecksrad', 'abstimmungen', 'turniere', 'teams', 'musik', 'spiele'].includes(f.key));
+  const others = me.features.filter((f) => f.enabled && !['gluecksrad', 'abstimmungen', 'turniere', 'teams', 'musik', 'spiele', 'netzwerk'].includes(f.key));
   $('featuresCard').hidden = !others.length;
   document.body.classList.toggle('no-features', !others.length);
   $('features').innerHTML = others.map((f) => `<li><strong>${esc(f.label)}</strong><small>kommt bald</small></li>`).join('');

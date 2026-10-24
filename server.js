@@ -10,6 +10,7 @@ const net = require('node:net');
 const crypto = require('node:crypto');
 const { createAchievements, emptyAchievements, RARITIES } = require('./achievements');
 const { createSpotify } = require('./spotify');
+const netmon = require('./netmon');
 
 const PORT = Number(process.env.PORT) || 8080;
 const HOST = process.env.HOST || '0.0.0.0';
@@ -18,6 +19,7 @@ const DATA_FILE = path.join(DATA_DIR, 'state.json');
 const PUBLIC_DIR = path.join(__dirname, 'public');
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'lanparty';
 const SERVER_CHECK_INTERVAL = (Number(process.env.SERVER_CHECK_INTERVAL) || 30) * 1000;
+const NET_CHECK_INTERVAL = (Number(process.env.NET_CHECK_INTERVAL) || 10) * 1000;
 const MAX_BODY = 64 * 1024;
 const STEAM_API_KEY = process.env.STEAM_API_KEY || '';
 const STEAM_API_BASE = process.env.STEAM_API_BASE || 'https://api.steampowered.com';
@@ -36,12 +38,16 @@ const DEFAULT_STATE = {
     wifiSsid: '',
     wifiPassword: '',
     ticker: 'Willkommen! Bitte haltet die Kabelwege frei.',
+    netInternet: '1.1.1.1',
+    netRouter: '',
   },
   schedule: [],
   players: [],
   scores: [], // Punkte-Buchungen fürs globale Leaderboard
   polls: [],
   servers: [],
+  devices: [],
+  netTests: [],
   users: [],
   tournaments: [],
   wheel: { open: true, entries: [], spinnerIds: [], spin: null },
@@ -61,6 +67,7 @@ const FEATURES = [
   { key: 'wishlist', label: 'Wishlist' },
   { key: 'musik', label: 'Musik (Spotify)' },
   { key: 'spiele', label: 'Spiele-Matrix' },
+  { key: 'netzwerk', label: 'Verbindungstest' },
 ];
 const FEATURE_KEYS = new Set(FEATURES.map((f) => f.key));
 const SESSION_COOKIE = 'lp_session';
@@ -69,6 +76,7 @@ const SESSION_COOKIE = 'lp_session';
 const COLLECTIONS = {
   schedule: { time: str(32), title: str(120), note: str(200) },
   servers: { name: str(60), host: str(255), port: num },
+  devices: { name: str(60), host: str(255) },
 };
 
 const SETTINGS_FIELDS = {
@@ -76,6 +84,8 @@ const SETTINGS_FIELDS = {
   wifiSsid: str(64),
   wifiPassword: str(64),
   ticker: str(300),
+  netInternet: str(255),
+  netRouter: str(255),
 };
 
 function str(max) {
@@ -109,6 +119,7 @@ function loadState() {
     } else {
       migrateToLeaderboard(state);
     }
+    if (Array.isArray(raw.netTests)) state.netTests = raw.netTests;
     if (raw.wheel && typeof raw.wheel === 'object') Object.assign(state.wheel, raw.wheel);
     if (raw.achievements && typeof raw.achievements === 'object') Object.assign(state.achievements, raw.achievements);
     if (raw.teams && typeof raw.teams === 'object') Object.assign(state.teams, raw.teams);
@@ -220,6 +231,8 @@ function publicState() {
     music: spotify.publicView(),
     // Die Matrix selbst ist nicht öffentlich; ändert sich die Zahl, lädt das Dashboard sie neu.
     steamRev,
+    devices: state.devices,
+    netTests: state.netTests,
   };
 }
 
@@ -393,6 +406,7 @@ async function handleApi(req, res, pathname) {
       Connection: 'keep-alive',
     });
     res.write(`data: ${JSON.stringify(publicState())}\n\n`);
+    res.write(`event: net\ndata: ${JSON.stringify(monitor.snapshot())}\n\n`);
     clients.add(res);
     req.on('close', () => clients.delete(res));
     return;
@@ -401,6 +415,8 @@ async function handleApi(req, res, pathname) {
   if (method === 'GET' && pathname === '/api/health') return sendJson(res, 200, { ok: true });
 
   if (pathname.startsWith('/api/tournaments/')) return handleTournaments(req, res, method, pathname.split('/').slice(3));
+  if (pathname.startsWith('/api/net')) return handleNet(req, res, method, pathname.split('/').slice(3));
+
   if (pathname.startsWith('/api/polls/')) return handlePolls(req, res, method, pathname.split('/').slice(3));
 
   if (method === 'GET' && pathname === '/api/me') {
@@ -461,6 +477,14 @@ async function handleApi(req, res, pathname) {
   if (parts[0] === 'teams') return handleTeamsAdmin(req, res, method, parts);
   if (parts[0] === 'music') return handleMusicAdmin(req, res, method, parts);
   if (parts[0] === 'steam') return handleSteamAdmin(req, res, method, parts);
+  if (method === 'GET' && parts[0] === 'net' && parts[1] === 'discover') {
+    return sendJson(res, 200, { devices: await netmon.discover() });
+  }
+  if (method === 'DELETE' && parts[0] === 'net' && parts[1] === 'tests') {
+    state.netTests = [];
+    changed();
+    return sendJson(res, 200, { ok: true });
+  }
 
   const fields = COLLECTIONS[parts[0]];
   if (!fields) return sendJson(res, 404, { error: 'Nicht gefunden' });
@@ -472,6 +496,7 @@ async function handleApi(req, res, pathname) {
     if (parts[0] === 'schedule') list.sort((a, b) => a.time.localeCompare(b.time));
     changed();
     if (parts[0] === 'servers') checkAllServers();
+    if (parts[0] === 'devices') monitor.tick();
     return sendJson(res, 201, item);
   }
 
@@ -484,6 +509,7 @@ async function handleApi(req, res, pathname) {
     if (parts[0] === 'schedule') list.sort((a, b) => a.time.localeCompare(b.time));
     changed();
     if (parts[0] === 'servers') checkAllServers();
+    if (parts[0] === 'devices') monitor.tick();
     return sendJson(res, 200, item);
   }
 
@@ -563,6 +589,7 @@ async function handleUsers(req, res, method, parts) {
     state.teams.pool = state.teams.pool.filter((p) => p.userId !== user.id);
     delete state.steam.profiles[user.id];
     delete nowPlaying[user.id];
+    state.netTests = state.netTests.filter((t) => t.userId !== user.id);
     // Der Spieler bleibt samt Punkten im Leaderboard, nur ohne Anmeldung.
     for (const p of state.players) if (p.userId === user.id) p.userId = null;
     steamChanged();
@@ -1889,6 +1916,82 @@ async function handleSteamAdmin(req, res, method, parts) {
   return sendJson(res, 404, { error: 'Nicht gefunden' });
 }
 
+// ---------------------------------------------------------------------------
+// Netzwerk-Monitoring und Verbindungstest
+
+const monitor = netmon.createNetMonitor({
+  interval: NET_CHECK_INTERVAL,
+  getConfig: () => ({ internet: state.settings.netInternet, router: state.settings.netRouter, devices: state.devices }),
+  onUpdate: (snap) => {
+    const payload = `event: net\ndata: ${JSON.stringify(snap)}\n\n`;
+    for (const res of clients) res.write(payload);
+  },
+});
+
+// Es testet immer nur einer, sonst teilen sich mehrere die Bandbreite des Pi.
+const SPEEDTEST_TIMEOUT = 30000;
+let speedLock = null;
+let speedLockTimer = null;
+
+function releaseSpeedLock() {
+  clearTimeout(speedLockTimer);
+  speedLock = null;
+  monitor.setSpeedtest(null);
+}
+
+const mbit = (v, max) => Math.min(max, Math.max(0, Math.round(Number(v) * 10) / 10 || 0));
+
+async function handleNet(req, res, method, parts) {
+  if (method === 'GET' && parts.length === 0) return sendJson(res, 200, monitor.snapshot());
+  if (parts[0] !== 'speed') return sendJson(res, 404, { error: 'Nicht gefunden' });
+
+  const user = viewer(req);
+  if (!user) return sendJson(res, 401, { error: 'Nicht angemeldet' });
+  if (!user.isAdmin && !user.features.netzwerk) return sendJson(res, 403, { error: 'Kein Zugriff auf den Verbindungstest' });
+  const action = parts[1];
+
+  if (method === 'POST' && action === 'start') {
+    if (speedLock && speedLock.userId !== user.id) {
+      return sendJson(res, 409, { error: `Gerade testet ${speedLock.username}, versuch es gleich nochmal` });
+    }
+    clearTimeout(speedLockTimer);
+    speedLock = { userId: user.id, username: user.username };
+    speedLockTimer = setTimeout(releaseSpeedLock, SPEEDTEST_TIMEOUT);
+    monitor.setSpeedtest({ username: user.username, startedAt: Date.now() });
+    return sendJson(res, 200, { ok: true });
+  }
+
+  if (method === 'GET' && action === 'ping') {
+    res.writeHead(204, { 'Cache-Control': 'no-store' });
+    return res.end();
+  }
+
+  if (method === 'GET' && action === 'down') return netmon.streamDownload(req, res);
+
+  if (method === 'POST' && action === 'up') return sendJson(res, 200, await netmon.receiveUpload(req));
+
+  if (method === 'POST' && action === 'result') {
+    if (speedLock?.userId === user.id) releaseSpeedLock();
+    const body = await readBody(req);
+    if (body.cancel) return sendJson(res, 200, { ok: true });
+    const result = {
+      userId: user.id,
+      username: user.username,
+      ping: mbit(body.ping, 10000),
+      jitter: mbit(body.jitter, 10000),
+      down: mbit(body.down, 10000),
+      up: mbit(body.up, 10000),
+      at: Date.now(),
+    };
+    // Pro Nutzer nur das letzte Ergebnis.
+    state.netTests = [result, ...state.netTests.filter((t) => t.userId !== user.id)].slice(0, 50);
+    changed();
+    return sendJson(res, 200, result);
+  }
+
+  return sendJson(res, 404, { error: 'Nicht gefunden' });
+}
+
 function handleLogin(req, res, url) {
   const user = findUserByToken(url.searchParams.get('token'));
   if (!user) return redirect(res, '/?ungueltig=1');
@@ -1928,6 +2031,7 @@ setInterval(checkAllServers, SERVER_CHECK_INTERVAL).unref();
 refreshAllSteamGames().then(refreshSteamPlaying);
 setInterval(refreshAllSteamGames, STEAM_REFRESH).unref();
 setInterval(refreshSteamPlaying, 60 * 1000).unref();
+monitor.start();
 
 function shutdown() {
   if (saveTimer) saveNow();

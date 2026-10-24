@@ -12,7 +12,7 @@ Ein schlankes Dashboard für LAN-Partys, gebaut für den Raspberry Pi. Ein Bilds
 Im Admin-Bereich gibt es den Reiter **Nutzer**. Dort legst du Nutzer mit Nutzernamen an und schickst ihnen ihren persönlichen Link (`/login?token=…`). Wer den Link öffnet, ist auf diesem Gerät angemeldet und sieht im Dashboard seine Features.
 
 - **Admin**: Nutzer mit Admin-Haken kommen ohne Passwort in `/admin`. Das Master-Passwort aus `ADMIN_PASSWORD` funktioniert weiterhin.
-- **Features**: Pro Nutzer schaltest du Glücksrad, Abstimmungen, Turniere, Team-Generator, Musik, Spiele-Matrix, Essensbestellung und Wishlist frei. Essensbestellung und Wishlist sind noch Platzhalter.
+- **Features**: Pro Nutzer schaltest du Glücksrad, Abstimmungen, Turniere, Team-Generator, Musik, Spiele-Matrix, Verbindungstest, Essensbestellung und Wishlist frei. Essensbestellung und Wishlist sind noch Platzhalter.
 
 ## Abstimmungen
 
@@ -69,6 +69,20 @@ Alle steuern gemeinsam die Party-Musik. Gespielt wird über einen Spotify-Accoun
 - Die Matrix zeigt pro Spiel, wer es besitzt, wer es gerade spielt und wer es installiert hat, dazu „Das können alle spielen“. Mit „Starten“ öffnet Steam das Spiel direkt (und installiert es, falls nötig).
 - **Einschränkung:** Steam verrät nur Besitz, Spielzeit und das gerade laufende Spiel, nicht, was installiert ist. „Installiert“ hakt deshalb jeder in seiner eigenen Spalte selbst an.
 - Spielelisten werden stündlich neu geladen, „spielt gerade“ jede Minute. Die letzte Liste bleibt gespeichert, falls das Internet ausfällt.
+
+## Netzwerk-Monitoring
+
+Die Karte **Netzwerk** im Dashboard und auf der TV-Anzeige zeigt live, wie es um das LAN steht. Der Pi misst alle 10 Sekunden:
+
+- **Internet, Router, DNS**: Ping-Zeit, Jitter und Paketverlust mit Verlaufskurve. Der Router wird automatisch erkannt (bei der FritzBox meist `192.168.178.1`).
+- **Internet-Durchsatz**: aktueller Download und Upload der ganzen Party samt Auslastung der Leitung, direkt aus der FritzBox. Dafür in der FritzBox *Heimnetz → Netzwerk → Netzwerkeinstellungen → „Statusinformationen über UPnP übertragen“* einschalten. Ohne diese Option bleibt der Bereich ausgeblendet.
+- **Geräte**: Im Admin-Reiter **Netzwerk** trägst du PCs, Konsolen usw. ein oder lässt den Pi mit **Netzwerk durchsuchen** alle Geräte im Heimnetz finden. Fällt ein Gerät aus oder kommt zurück, wackelt die Zeile, ein Hinweis erscheint und es gibt einen kurzen Ton.
+
+Windows-PCs beantworten Ping meist nicht. Sie gelten trotzdem als online, sobald sie im Netz sind (der Pi sieht sie in seiner ARP-Tabelle), nur ohne Ping-Zeit.
+
+**Verbindungstest**: Nutzer mit dem Feature „Verbindungstest“ messen im Dashboard Ping, Download und Upload zwischen ihrem Gerät und dem Pi, mit Tacho-Animation. Das zeigt schnell, wessen WLAN schwächelt. Das letzte Ergebnis pro Nutzer landet in der Liste „Schnellste Verbindungen“. Es testet immer nur einer gleichzeitig.
+
+Die Töne hängen am gemeinsamen 🔊-Knopf (Taste **M**). Damit die TV-Anzeige ohne Klick Töne abspielen darf, startet `deploy/kiosk.sh` Chromium mit `--autoplay-policy=no-user-gesture-required`.
 
 ## Glücksrad
 
@@ -167,9 +181,11 @@ Bei der Docker-Variante den Pfad zu `kiosk.sh` entsprechend anpassen. Unter Wayl
 | `SPOTIFY_REDIRECT_URI` | `http://127.0.0.1:<PORT>/api/spotify/callback` | Rücksprung-Adresse, muss in der Spotify-App eingetragen sein |
 | `STEAM_API_KEY` | – | Steam-Web-API-Schlüssel (sonst im Admin-Reiter **Steam** eintragen) |
 | `STEAM_REFRESH_MINUTES` | `60` | Minuten zwischen dem Neuladen der Steam-Spielelisten |
+| `NET_CHECK_INTERVAL` | `10` | Sekunden zwischen den Netzwerk-Messungen |
 
 ## Hinweise
 
+- Im Docker-Container darf `ping` ohne Root nicht senden. Das Netzwerk-Monitoring misst dann die Zeit für einen TCP-Verbindungsaufbau; die Geräteerkennung per ARP funktioniert nur mit `network_mode: host`. Auf dem Pi direkt (systemd) gibt es echte Ping-Zeiten.
 - Der Server-Status prüft per **TCP**, ob ein Port offen ist. Reine UDP-Server lassen sich so nicht prüfen; trage dafür einen TCP-Port desselben Hosts ein (z.B. RCON).
 - Die Zeitangaben im Zeitplan richten sich nach der Uhr des Browsers, der die Anzeige darstellt.
 - Lokal entwickeln: `npm run dev` (Node 18+), dann http://localhost:8080 öffnen.
