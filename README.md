@@ -20,6 +20,13 @@ Im Admin-Bereich gibt es den Reiter **Nutzer**. Dort legst du Nutzer mit Nutzern
 - Nutzer mit dem Feature „Abstimmungen“ stimmen direkt im Dashboard ab: eine Stimme pro Umfrage, änderbar solange sie läuft. Nochmal auf die eigene Antwort klicken zieht die Stimme zurück.
 - Die TV-Anzeige zeigt alle laufenden Umfragen und das Ergebnis der zuletzt beendeten. Wer wofür gestimmt hat, ist nicht öffentlich.
 
+## Achievements
+
+- Alle angemeldeten Nutzer sammeln Achievements, ohne dass du etwas freischalten musst. Viele kommen von selbst: erste Anmeldung, Abstimmungen (mitstimmen, 5× mitstimmen, für die Gewinner-Antwort stimmen), Glücksrad (Einträge, drehen, eigener Eintrag gewinnt), nachts zwischen 3 und 5 Uhr dabei sein und 5 Achievements sammeln.
+- Im Admin-Reiter **Achievements** vergibst du die übrigen von Hand (MVP, Clutch-König, Turniersieger, …), legst eigene mit Emoji, Beschreibung und Seltenheit an und nimmst Achievements wieder weg.
+- Seltenheiten bringen Punkte: Gewöhnlich 10, Selten 25, Episch 50, Legendär 100. Im Dashboard sieht jeder seine Kacheln mit Fortschritt, das Achievement-Ranking und die letzten Freischaltungen.
+- Jede Freischaltung wird gefeiert: Die TV-Anzeige zeigt ein großes Popup mit Konfetti und Fanfare, auf dem eigenen Gerät gibt es das Popup für eigene Achievements und einen kleinen Hinweis für die der anderen. Der Ton lässt sich in der Achievement-Karte abschalten. Browser spielen Ton erst nach dem ersten Klick ab; `deploy/kiosk.sh` startet Chromium deshalb mit `--autoplay-policy=no-user-gesture-required`.
+
 ## Glücksrad
 
 - Nutzer mit dem Feature „Glücksrad“ tragen im Dashboard Einträge ein und entfernen ihre eigenen (max. 10 pro Nutzer, 60 insgesamt).

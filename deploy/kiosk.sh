@@ -13,4 +13,5 @@ until wget -qO- "${URL%/}/api/health" >/dev/null 2>&1; do sleep 2; done
 
 BROWSER=$(command -v chromium-browser || command -v chromium)
 exec "$BROWSER" --kiosk --noerrdialogs --disable-infobars --incognito \
-  --disable-session-crashed-bubble --check-for-update-interval=31536000 "$URL"
+  --disable-session-crashed-bubble --check-for-update-interval=31536000 \
+  --autoplay-policy=no-user-gesture-required "$URL"

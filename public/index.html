@@ -64,6 +64,22 @@
       <div class="polls" id="polls"></div>
     </section>
 
+    <!-- Nur für angemeldete Nutzer sichtbar -->
+    <section class="card ach-card" id="achievementsCard" hidden>
+      <h2>Achievements <small id="achSummary"></small>
+        <button type="button" class="icon sound-toggle" id="soundToggle" title="Sound an/aus"></button>
+      </h2>
+      <div class="ach-body">
+        <ul class="ach-grid" id="achGrid"></ul>
+        <div class="ach-side">
+          <h3 class="side-title">Ranking</h3>
+          <ol class="leaderboard ach-ranking" id="achRanking"></ol>
+          <h3 class="side-title">Zuletzt freigeschaltet</h3>
+          <ul class="ach-feed" id="achFeed"></ul>
+        </div>
+      </div>
+    </section>
+
     <section class="card" id="serversCard">
       <h2>Server</h2>
       <ul class="servers" id="servers"></ul>
@@ -76,6 +92,7 @@
 
   <script src="/common.js"></script>
   <script src="/wheel.js"></script>
+  <script src="/achievements.js"></script>
   <script src="/display.js"></script>
 </body>
 </html>

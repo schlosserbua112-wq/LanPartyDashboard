@@ -8,6 +8,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const net = require('node:net');
 const crypto = require('node:crypto');
+const { createAchievements, emptyAchievements } = require('./achievements');
 
 const PORT = Number(process.env.PORT) || 8080;
 const HOST = process.env.HOST || '0.0.0.0';
@@ -38,6 +39,7 @@ const DEFAULT_STATE = {
   servers: [],
   users: [],
   wheel: { open: true, entries: [], spinnerIds: [], spin: null },
+  achievements: emptyAchievements(),
 };
 
 // Features, die der Admin pro Nutzer freischalten kann. Noch Platzhalter.
@@ -89,6 +91,7 @@ function loadState() {
     }
     if (Array.isArray(raw.users)) state.users = raw.users;
     if (raw.wheel && typeof raw.wheel === 'object') Object.assign(state.wheel, raw.wheel);
+    if (raw.achievements && typeof raw.achievements === 'object') Object.assign(state.achievements, raw.achievements);
     return state;
   } catch (err) {
     if (err.code !== 'ENOENT') console.error('Konnte Daten nicht laden, starte leer:', err.message);
@@ -98,6 +101,7 @@ function loadState() {
 
 let state = loadState();
 let saveTimer = null;
+const achievements = createAchievements(() => state, () => changed());
 
 function scheduleSave() {
   clearTimeout(saveTimer);
@@ -161,6 +165,7 @@ function publicState() {
     players: state.players,
     polls: state.polls.map(pollView),
     servers: state.servers.map((s) => ({ ...s, status: serverStatus[s.id] || null })),
+    achievements: achievements.publicView(state.users),
   };
 }
 
@@ -365,6 +370,13 @@ async function handleApi(req, res, pathname) {
     return sendJson(res, 200, { feature: key, status: 'kommt bald' });
   }
 
+  if (method === 'GET' && pathname === '/api/achievements/mine') {
+    const user = viewer(req);
+    if (!user) return sendJson(res, 401, { error: 'Nicht angemeldet' });
+    achievements.track(user, 'visit');
+    return sendJson(res, 200, { progress: achievements.progressOf(user.id) });
+  }
+
   if (pathname.startsWith('/api/wheel/')) return handleWheel(req, res, method, pathname.split('/').slice(3));
 
   if (!pathname.startsWith('/api/admin/')) return sendJson(res, 404, { error: 'Nicht gefunden' });
@@ -383,6 +395,7 @@ async function handleApi(req, res, pathname) {
   if (parts[0] === 'users') return handleUsers(req, res, method, parts);
   if (parts[0] === 'wheel') return handleWheelAdmin(req, res, method, parts);
   if (parts[0] === 'polls') return handlePollsAdmin(req, res, method, parts);
+  if (parts[0] === 'achievements') return handleAchievementsAdmin(req, res, method, parts);
 
   const fields = COLLECTIONS[parts[0]];
   if (!fields) return sendJson(res, 404, { error: 'Nicht gefunden' });
@@ -476,7 +489,8 @@ async function handleUsers(req, res, method, parts) {
     state.users.splice(state.users.indexOf(user), 1);
     state.wheel.spinnerIds = state.wheel.spinnerIds.filter((uid) => uid !== user.id);
     for (const poll of state.polls) delete poll.votes[user.id];
-    scheduleSave();
+    achievements.removeUser(user.id);
+    changed();
     return sendJson(res, 200, { ok: true });
   }
 
@@ -513,6 +527,7 @@ async function handleWheel(req, res, method, parts) {
     }
     const entry = { id: crypto.randomUUID(), text, ownerId: user.id, owner: user.username };
     wheel.entries.push(entry);
+    achievements.track(user, 'entry');
     changed();
     return sendJson(res, 201, entry);
   }
@@ -545,6 +560,10 @@ async function handleWheel(req, res, method, parts) {
       result: wheel.entries[winnerIndex].text,
       by: user.username,
     };
+    achievements.track(user, 'spin');
+    // Erst wenn das Rad steht, sonst verrät die Meldung das Ergebnis.
+    const winner = state.users.find((u) => u.id === wheel.entries[winnerIndex].ownerId);
+    if (winner) setTimeout(() => achievements.wheelWon(winner), SPIN_DURATION + 300);
     changed();
     return sendJson(res, 200, { ok: true });
   }
@@ -629,6 +648,7 @@ async function handlePolls(req, res, method, parts) {
     } else {
       if (!poll.options.some((o) => o.id === optionId)) return sendJson(res, 400, { error: 'Unbekannte Antwort' });
       poll.votes[user.id] = optionId;
+      achievements.track(user, 'vote', { pollId: poll.id });
     }
     changed();
     return sendJson(res, 200, { ok: true });
@@ -656,7 +676,11 @@ async function handlePollsAdmin(req, res, method, parts) {
 
   if (method === 'PATCH' && parts.length === 2) {
     const body = await readBody(req);
-    if ('open' in body) poll.open = Boolean(body.open);
+    if ('open' in body) {
+      const wasOpen = poll.open;
+      poll.open = Boolean(body.open);
+      if (wasOpen && !poll.open) achievements.pollClosed(poll, state.users);
+    }
     changed();
     return sendJson(res, 200, pollView(poll));
   }
@@ -676,10 +700,47 @@ async function handlePollsAdmin(req, res, method, parts) {
   return sendJson(res, 405, { error: 'Methode nicht erlaubt' });
 }
 
+// ---------------------------------------------------------------------------
+// Achievements (Logik in achievements.js)
+
+async function handleAchievementsAdmin(req, res, method, parts) {
+  if (method === 'POST' && parts[1] === 'award' && parts.length === 2) {
+    const body = await readBody(req);
+    const user = state.users.find((u) => u.id === body.userId);
+    if (!user) return sendJson(res, 404, { error: 'Nutzer nicht gefunden' });
+    if (!achievements.findDef(body.achId)) return sendJson(res, 404, { error: 'Achievement nicht gefunden' });
+    const by = viewer(req)?.username || 'Admin';
+    const entry = achievements.unlock(user, body.achId, by);
+    if (!entry) return sendJson(res, 409, { error: `${user.username} hat dieses Achievement schon` });
+    return sendJson(res, 201, entry);
+  }
+
+  if (method === 'DELETE' && parts[1] === 'unlocks' && parts.length === 3) {
+    if (!achievements.revoke(parts[2])) return sendJson(res, 404, { error: 'Nicht gefunden' });
+    changed();
+    return sendJson(res, 200, { ok: true });
+  }
+
+  if (method === 'POST' && parts[1] === 'defs' && parts.length === 2) {
+    const def = achievements.addCustom(await readBody(req));
+    changed();
+    return sendJson(res, 201, def);
+  }
+
+  if (method === 'DELETE' && parts[1] === 'defs' && parts.length === 3) {
+    if (!achievements.removeCustom(parts[2])) return sendJson(res, 404, { error: 'Nur eigene Achievements lassen sich löschen' });
+    changed();
+    return sendJson(res, 200, { ok: true });
+  }
+
+  return sendJson(res, 404, { error: 'Nicht gefunden' });
+}
+
 function handleLogin(req, res, url) {
   const user = findUserByToken(url.searchParams.get('token'));
   if (!user) return redirect(res, '/?ungueltig=1');
   user.lastLogin = Date.now();
+  achievements.track(user, 'login');
   scheduleSave();
   const cookie = `${SESSION_COOKIE}=${encodeURIComponent(user.token)}; Path=/; HttpOnly; SameSite=Lax; Max-Age=31536000`;
   redirect(res, '/', { 'Set-Cookie': cookie });

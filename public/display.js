@@ -69,6 +69,9 @@ function render(state) {
   renderPolls(state.polls);
   if (me && hasFeature('abstimmungen')) loadMyVotes();
 
+  achievementNotifier.update(state.achievements);
+  if (me) loadAchievements();
+
   $('servers').innerHTML = state.servers.length
     ? state.servers.map((srv) => {
         const st = srv.status;
@@ -133,6 +136,47 @@ $('polls').addEventListener('click', async (e) => {
   if (res.ok) loadMyVotes();
 });
 
+// --- Achievements ------------------------------------------------------------
+
+// TV-Anzeige: jede Freischaltung groß. Angemeldet: die eigenen groß, fremde klein.
+const achievementNotifier = createAchievementNotifier({
+  big: (unlock) => (!me ? 'big' : unlock.userId === me.id ? 'own' : 'toast'),
+});
+let achProgress = {};
+
+function renderAchievements(data) {
+  const mine = data.unlocks.filter((u) => u.userId === me.id);
+  const points = data.ranking.find((r) => r.userId === me.id)?.points || 0;
+  $('achSummary').textContent = `${mine.length} / ${data.defs.length} · ${points} Punkte`;
+  $('achGrid').innerHTML = renderAchievementTiles(data, me.id, achProgress);
+  $('achRanking').innerHTML = data.ranking.length
+    ? data.ranking.slice(0, 8).map((r, i) => `<li class="${r.userId === me.id ? 'me' : ''}"><span class="rank">${i + 1}</span><span class="name">${esc(r.username)} <small>${r.count} 🏅</small></span><span class="points">${r.points}</span></li>`).join('')
+    : '<li class="empty">Noch niemand</li>';
+  $('achFeed').innerHTML = data.unlocks.length
+    ? data.unlocks.slice(0, 6).map((u) => {
+        const d = data.defs.find((x) => x.id === u.achId);
+        return d ? `<li style="--rarity:${RARITY_COLORS[d.rarity]}"><span class="ach-feed-icon">${esc(d.icon)}</span><span class="grow"><strong>${esc(u.username)}</strong> · ${esc(d.name)}</span></li>` : '';
+      }).join('')
+    : '<li class="empty">Noch nichts freigeschaltet</li>';
+}
+
+async function loadAchievements() {
+  const res = await fetch('/api/achievements/mine', { headers: auth });
+  if (!res.ok) return;
+  achProgress = (await res.json()).progress;
+  if (current) renderAchievements(current.achievements);
+}
+
+function renderSoundToggle() {
+  $('soundToggle').textContent = achievementSound.muted ? '🔇' : '🔊';
+}
+
+$('soundToggle').addEventListener('click', () => {
+  achievementSound.toggle();
+  renderSoundToggle();
+});
+renderSoundToggle();
+
 // --- Angemeldete Nutzer ------------------------------------------------------
 
 const hasFeature = (key) => me.isAdmin || me.features.some((f) => f.key === key && f.enabled);
@@ -159,6 +203,7 @@ function enterUserMode(user) {
   $('username').textContent = me.username;
   $('modeSwitch').hidden = !me.isAdmin;
   $('wheelSide').hidden = false;
+  $('achievementsCard').hidden = me.master;
   if (me.master) {
     // Abmelden vom Admin-Passwort: zurück in die Admin-Anmeldung.
     $('logout').addEventListener('click', (e) => {
