@@ -344,16 +344,18 @@ body.display.user-mode { height: auto; min-height: 100vh; overflow: visible; fon
   grid-template-areas:
     "wheel wheel schedule"
     "wheel wheel leaderboard"
-    "votes features servers"
-    "network network network";
+    "votes features servers";
 }
 .user-mode.no-features .grid {
   grid-template-areas:
     "wheel wheel schedule"
     "wheel wheel leaderboard"
-    "votes servers servers"
-    "network network network";
+    "votes servers servers";
 }
+/* Breite Feature-Karten (Turniere, Achievements, Musik, Netzwerk, Teams,
+   Steam) laufen im Nutzermodus in DOM-Reihenfolge über die volle Breite. */
+.user-mode #tournamentCard, .user-mode #achievementsCard, .user-mode #musicCard,
+.user-mode #networkCard, .user-mode #teamsCard, .user-mode #steamCard { grid-area: auto; grid-column: 1 / -1; }
 #featuresCard { grid-area: features; }
 .user-mode #wheelCard { height: clamp(520px, calc(100vh - 150px), 860px); }
 .user-mode .wheel-body { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(280px, 1fr); gap: 1.5rem; }
@@ -375,7 +377,7 @@ body.display.user-mode { height: auto; min-height: 100vh; overflow: visible; fon
 @media (max-width: 1000px) {
   .user-mode .grid, .user-mode.no-features .grid {
     grid-template-columns: 1fr;
-    grid-template-areas: "wheel" "schedule" "leaderboard" "votes" "features" "servers" "network";
+    grid-template-areas: "wheel" "schedule" "leaderboard" "votes" "features" "servers";
   }
   .user-mode #wheelCard { height: auto; }
   .user-mode .wheel-body { grid-template-columns: 1fr; }
@@ -633,35 +635,14 @@ textarea { resize: vertical; }
 
 #tournamentCard { grid-area: tournament; display: flex; flex-direction: column; }
 .tournament { flex: 1; min-height: 0; display: flex; flex-direction: column; }
-.has-tournament .grid {
+.display:not(.user-mode).has-tournament .grid {
   grid-template-rows: 1fr 0.7fr 1.5fr;
   grid-template-areas:
-    "schedule wheel leaderboard"
-    "votes wheel servers"
-    "tournament tournament tournament";
-}
-.user-mode.has-tournament .grid {
-  grid-template-rows: auto auto auto minmax(220px, auto);
-  grid-template-areas:
-    "wheel wheel schedule"
-    "wheel wheel leaderboard"
-    "tournament tournament tournament"
-    "votes features servers";
-}
-.user-mode.has-tournament.no-features .grid {
-  grid-template-areas:
-    "wheel wheel schedule"
-    "wheel wheel leaderboard"
-    "tournament tournament tournament"
-    "votes servers servers";
+    "schedule wheel leaderboard network"
+    "votes wheel servers network"
+    "tournament tournament tournament network";
 }
 .user-mode #tournamentCard { min-height: 320px; }
-@media (max-width: 1000px) {
-  .user-mode.has-tournament .grid, .user-mode.has-tournament.no-features .grid {
-    grid-template-columns: 1fr;
-    grid-template-areas: "wheel" "schedule" "leaderboard" "tournament" "votes" "features" "servers";
-  }
-}
 
 .t-top { display: flex; align-items: flex-start; gap: 0.5rem; }
 .t-tabs { display: flex; flex-wrap: wrap; gap: 0.4rem; flex: 1; margin-bottom: 0.6rem; }
@@ -798,22 +779,15 @@ textarea { resize: vertical; }
 
 /* ------------------------------------------------------- Achievements */
 
-.user-mode .grid {
-  grid-template-areas:
-    "wheel wheel schedule"
-    "wheel wheel leaderboard"
-    "votes features servers"
-    "achievements achievements achievements";
-}
-.user-mode.no-features .grid {
-  grid-template-areas:
-    "wheel wheel schedule"
-    "wheel wheel leaderboard"
-    "votes servers servers"
-    "achievements achievements achievements";
-}
-#achievementsCard { grid-area: achievements; }
 .ach-card h2 { display: flex; align-items: baseline; gap: 0.5rem; }
+/* Achievement-Ranking (eigenes Markup, das globale Leaderboard steckt in leaderboard.js) */
+.ach-ranking { list-style: none; margin: 0; padding: 0; }
+.ach-ranking li { display: flex; align-items: baseline; gap: 0.6rem; padding: 0.35rem 0; border-top: 1px solid var(--line); }
+.ach-ranking li:first-child { border-top: none; }
+.ach-ranking li.me { color: var(--accent); }
+.ach-ranking .rank { width: 1.6em; text-align: right; color: var(--muted); font-variant-numeric: tabular-nums; }
+.ach-ranking .name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ach-ranking .points { font-weight: 700; font-variant-numeric: tabular-nums; }
 .ach-body { display: grid; grid-template-columns: minmax(0, 3fr) minmax(240px, 1fr); gap: 1.5rem; }
 .ach-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 0.7rem; }
 
@@ -861,9 +835,6 @@ textarea { resize: vertical; }
 .ach-feed-icon { width: 1.8em; height: 1.8em; display: grid; place-items: center; border-radius: 50%; border: 2px solid var(--rarity); flex: none; }
 
 @media (max-width: 1000px) {
-  .user-mode .grid, .user-mode.no-features .grid {
-    grid-template-areas: "wheel" "schedule" "leaderboard" "votes" "features" "achievements" "servers";
-  }
   .ach-body { grid-template-columns: 1fr; }
 }
 
@@ -1280,22 +1251,7 @@ select { font: inherit; color: inherit; border-radius: 8px; border: 1px solid va
 @keyframes note-up { 0% { opacity: 0; transform: translateY(0); } 20% { opacity: 1; } 100% { opacity: 0; transform: translateY(-3em) rotate(20deg); } }
 
 /* Karte im Dashboard */
-#musicCard { grid-area: music; display: flex; flex-direction: column; }
-.user-mode.has-music .grid {
-  grid-template-rows: auto auto minmax(220px, auto) auto;
-  grid-template-areas:
-    "wheel wheel schedule"
-    "wheel wheel leaderboard"
-    "votes features servers"
-    "music music music";
-}
-.user-mode.has-music.no-features .grid {
-  grid-template-areas:
-    "wheel wheel schedule"
-    "wheel wheel leaderboard"
-    "votes servers servers"
-    "music music music";
-}
+#musicCard { display: flex; flex-direction: column; }
 .music-body { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr) minmax(0, 1.1fr); gap: 1.5rem; min-height: 340px; }
 .music-now { display: grid; grid-template-columns: minmax(120px, 0.8fr) 1fr; gap: 1.2rem; align-items: start; perspective: 600px; }
 .now-cover { aspect-ratio: 1; border-radius: 12px; overflow: hidden; background: var(--card-2); display: grid; place-items: center; font-size: 3em; box-shadow: 0 8px 30px rgba(0, 0, 0, 0.4); }
@@ -1337,10 +1293,6 @@ select { font: inherit; color: inherit; border-radius: 8px; border: 1px solid va
   .music-now { grid-column: 1 / -1; grid-template-columns: 160px 1fr; }
 }
 @media (max-width: 1000px) {
-  .user-mode.has-music .grid, .user-mode.has-music.no-features .grid {
-    grid-template-columns: 1fr;
-    grid-template-areas: "wheel" "music" "schedule" "leaderboard" "votes" "features" "servers";
-  }
   .music-body { grid-template-columns: 1fr; }
   .now-playing { max-width: 100%; }
 }
