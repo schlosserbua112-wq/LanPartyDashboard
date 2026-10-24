@@ -46,29 +46,6 @@ function renderClock() {
   $('clock').textContent = new Date().toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
 }
 
-function renderSchedule(items) {
-  const now = Date.now();
-  // Der letzte Eintrag, der schon begonnen hat, läuft gerade.
-  let running = -1;
-  items.forEach((item, i) => {
-    const t = parseTime(item.time);
-    if (t && t.getTime() <= now) running = i;
-  });
-  const runningId = running >= 0 ? items[running].id : null;
-  const prevRunning = FX.track('schedule-running', runningId);
-  $('schedule').innerHTML = items.length
-    ? items.map((item, i) => {
-        const cls = i === running ? 'now' : i < running ? 'past' : i === running + 1 ? 'next' : '';
-        const badge = i === running ? '<span class="badge">läuft</span>' : i === running + 1 ? '<span class="badge alt">als Nächstes</span>' : '';
-        return `<li class="${cls}"><time>${formatTime(item.time)}</time><div><strong>${esc(item.title)}</strong>${badge}${item.note ? `<p>${esc(item.note)}</p>` : ''}</div></li>`;
-      }).join('')
-    : '<li class="empty">Noch kein Zeitplan</li>';
-  if (prevRunning !== undefined && runningId && prevRunning !== runningId) {
-    FX.sound('chime');
-    FX.bump($('schedule').querySelector('.now'), 'fx-glow');
-  }
-}
-
 function render(state) {
   current = state;
   const s = state.settings;
@@ -77,10 +54,6 @@ function render(state) {
   $('wifi').innerHTML = s.wifiSsid
     ? `WLAN <strong>${esc(s.wifiSsid)}</strong>${s.wifiPassword ? ` · Passwort <strong>${esc(s.wifiPassword)}</strong>` : ''}`
     : '';
-  $('ticker').textContent = s.ticker || '';
-
-  renderSchedule(state.schedule);
-
   $('wheelOpen').textContent = state.wheel.open ? 'Einträge offen' : 'Eingabe geschlossen';
   if (me) renderWheelSide(state.wheel);
   wheel.update(state.wheel);
@@ -104,27 +77,6 @@ function render(state) {
   if (me && hasFeature('teams')) renderTeams(state.teams);
 
   music.render(state.music);
-
-  renderServers(state.servers);
-}
-
-function renderServers(servers) {
-  $('servers').innerHTML = servers.length
-    ? servers.map((srv) => {
-        const st = srv.status;
-        const cls = !st ? 'unknown' : st.online ? 'online' : 'offline';
-        const info = !st ? 'prüfe…' : st.online ? `${st.latency} ms` : 'offline';
-        return `<li class="${cls}" data-key="${esc(srv.id)}"><span class="dot"></span><span class="name">${esc(srv.name)}</span><span class="addr">${esc(srv.host)}:${srv.port}</span><span class="info">${info}</span></li>`;
-      }).join('')
-    : '<li class="empty">Keine Server eingetragen</li>';
-  // Server geht online/offline: kurz aufblinken lassen.
-  for (const srv of servers) {
-    const online = srv.status ? srv.status.online : null;
-    const prev = FX.track('server-' + srv.id, online);
-    if (prev === undefined || prev === null || online === null || prev === online) continue;
-    FX.bump($('servers').querySelector(`[data-key="${CSS.escape(srv.id)}"]`), online ? 'fx-flash-ok' : 'fx-flash-bad');
-    FX.sound(online ? 'up' : 'down');
-  }
 }
 
 // --- Abstimmungen ------------------------------------------------------------
@@ -399,7 +351,6 @@ $('clock').before(FX.muteButton());
 renderClock();
 setInterval(renderClock, 1000);
 // "läuft"/"als Nächstes" auch ohne neue Daten weiterschalten.
-setInterval(() => current && renderSchedule(current.schedule), 30000);
 
 subscribe(render, (ok) => {
   $('conn').textContent = ok ? '' : 'Verbindung unterbrochen…';

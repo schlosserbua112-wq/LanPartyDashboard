@@ -48,33 +48,10 @@
         <label>Name der Veranstaltung <input name="eventName"></label>
         <label>WLAN-Name <input name="wifiSsid"></label>
         <label>WLAN-Passwort <input name="wifiPassword"></label>
-        <label>Laufschrift <input name="ticker"></label>
         <button>Speichern</button>
       </form>
     </section>
 
-    <section class="card">
-      <h2>Zeitplan</h2>
-      <form class="row" data-collection="schedule">
-        <input name="time" type="datetime-local" required>
-        <input name="title" placeholder="Programmpunkt, z.B. CS2-Turnier" required>
-        <input name="note" placeholder="Notiz (optional)">
-        <button>Hinzufügen</button>
-      </form>
-      <ul class="items" id="list-schedule"></ul>
-    </section>
-
-    <section class="card">
-      <h2>Spieleserver</h2>
-      <p class="muted">Der Pi prüft per TCP, ob der Server erreichbar ist.</p>
-      <form class="row" data-collection="servers">
-        <input name="name" placeholder="Name, z.B. Minecraft" required>
-        <input name="host" placeholder="IP oder Hostname" required>
-        <input name="port" type="number" placeholder="Port" class="short" required>
-        <button>Hinzufügen</button>
-      </form>
-      <ul class="items" id="list-servers"></ul>
-    </section>
     </div>
 
     <div class="view wheel-layout" id="view-wheel" hidden>

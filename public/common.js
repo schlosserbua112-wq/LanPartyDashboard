@@ -29,24 +29,3 @@ function onSpaceKey(action) {
     action();
   });
 }
-
-// "2026-10-24T18:00" oder "18:00" -> Date (heute) bzw. null
-function parseTime(value) {
-  if (!value) return null;
-  if (/^\d{1,2}:\d{2}$/.test(value)) {
-    const [h, m] = value.split(':').map(Number);
-    const d = new Date();
-    d.setHours(h, m, 0, 0);
-    return d;
-  }
-  const d = new Date(value);
-  return Number.isNaN(d.getTime()) ? null : d;
-}
-
-function formatTime(value) {
-  const d = parseTime(value);
-  if (!d) return esc(value);
-  const time = d.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
-  const today = new Date().toDateString() === d.toDateString();
-  return today ? time : `${d.toLocaleDateString('de-DE', { weekday: 'short' })} ${time}`;
-}

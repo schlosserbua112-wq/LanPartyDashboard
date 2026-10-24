@@ -44,7 +44,7 @@ ul, ol { list-style: none; margin: 0; padding: 0; }
 .display {
   height: 100vh;
   display: grid;
-  grid-template-rows: auto 1fr auto;
+  grid-template-rows: auto 1fr;
   overflow: hidden;
   font-size: clamp(14px, 1.15vw, 26px);
 }
@@ -72,31 +72,18 @@ ul, ol { list-style: none; margin: 0; padding: 0; }
   display: grid;
   gap: 1rem;
   padding: 1rem 1.5rem;
-  grid-template-columns: 1fr 1.15fr 0.9fr 0.95fr;
+  grid-template-columns: 1.3fr 1fr 0.95fr;
   grid-template-rows: 1.4fr 1fr;
   grid-template-areas:
-    "schedule wheel leaderboard network"
-    "votes wheel servers network";
+    "wheel leaderboard network"
+    "wheel votes network";
   min-height: 0;
 }
-#scheduleCard { grid-area: schedule; }
 #wheelCard { grid-area: wheel; }
 #leaderboardCard { grid-area: leaderboard; }
 #votesCard { grid-area: votes; }
-#serversCard { grid-area: servers; }
 #networkCard { grid-area: network; }
 
-.schedule li {
-  display: flex;
-  gap: 1rem;
-  padding: 0.5rem 0.6rem;
-  border-radius: 8px;
-}
-.schedule time { min-width: 4.5em; color: var(--muted); font-variant-numeric: tabular-nums; }
-.schedule p { margin: 0.2rem 0 0; color: var(--muted); font-size: 0.9em; }
-.schedule .past { opacity: 0.4; }
-.schedule .now { background: var(--card-2); border-left: 4px solid var(--accent); }
-.schedule .now time { color: var(--accent); }
 .badge {
   margin-left: 0.6rem;
   font-size: 0.7em;
@@ -131,30 +118,12 @@ ul, ol { list-style: none; margin: 0; padding: 0; }
 }
 .votes .count { text-align: right; font-weight: 700; }
 
-.servers li {
-  display: flex;
-  align-items: center;
-  gap: 0.6rem;
-  padding: 0.35rem 0;
-}
-.servers .name { flex: 1; }
-.servers .addr { color: var(--muted); font-size: 0.85em; }
-.servers .info { min-width: 4.5em; text-align: right; font-variant-numeric: tabular-nums; }
 .dot { width: 0.7em; height: 0.7em; border-radius: 50%; background: var(--muted); flex: none; }
 .online .dot, .dot.online { background: var(--ok); box-shadow: 0 0 8px var(--ok); }
 .offline .dot, .dot.offline { background: var(--bad); }
-.offline .info { color: var(--bad); }
 
-.ticker {
-  display: flex;
-  justify-content: space-between;
-  padding: 0.6rem 1.5rem;
-  background: var(--card);
-  border-top: 1px solid var(--line);
-  white-space: nowrap;
-  overflow: hidden;
-}
 .conn { color: var(--bad); }
+.conn:empty { display: none; }
 
 /* ------------------------------------------------- Admin und Abstimmung */
 
@@ -342,15 +311,13 @@ body.display.user-mode { height: auto; min-height: 100vh; overflow: visible; fon
   grid-template-columns: 1fr 1fr 1fr;
   grid-template-rows: auto auto minmax(220px, auto);
   grid-template-areas:
-    "wheel wheel schedule"
     "wheel wheel leaderboard"
-    "votes features servers";
+    "votes votes features";
 }
 .user-mode.no-features .grid {
   grid-template-areas:
-    "wheel wheel schedule"
     "wheel wheel leaderboard"
-    "votes servers servers";
+    "votes votes votes";
 }
 /* Breite Feature-Karten (Turniere, Achievements, Musik, Netzwerk, Teams,
    Steam) laufen im Nutzermodus in DOM-Reihenfolge über die volle Breite. */
@@ -377,7 +344,7 @@ body.display.user-mode { height: auto; min-height: 100vh; overflow: visible; fon
 @media (max-width: 1000px) {
   .user-mode .grid, .user-mode.no-features .grid {
     grid-template-columns: 1fr;
-    grid-template-areas: "wheel" "schedule" "leaderboard" "votes" "features" "servers";
+    grid-template-areas: "wheel" "leaderboard" "votes" "features";
   }
   .user-mode #wheelCard { height: auto; }
   .user-mode .wheel-body { grid-template-columns: 1fr; }
@@ -638,9 +605,9 @@ textarea { resize: vertical; }
 .display:not(.user-mode).has-tournament .grid {
   grid-template-rows: 1fr 0.7fr 1.5fr;
   grid-template-areas:
-    "schedule wheel leaderboard network"
-    "votes wheel servers network"
-    "tournament tournament tournament network";
+    "wheel leaderboard network"
+    "wheel votes network"
+    "tournament tournament network";
 }
 .user-mode #tournamentCard { min-height: 320px; }
 
@@ -996,9 +963,6 @@ select {
 }
 @keyframes fx-shimmer { to { background-position: 300% 0; } }
 
-/* Laufender Programmpunkt atmet leicht */
-.schedule .now { animation: fx-breathe 3s ease-in-out infinite; }
-@keyframes fx-breathe { 50% { box-shadow: 0 0 18px rgba(56, 225, 255, 0.25); } }
 
 /* Drehen-Knopf lädt zum Klicken ein */
 .spin-btn:not(:disabled) {
@@ -1047,11 +1011,6 @@ button:active:not(:disabled) { transform: scale(0.96); }
 .fx-shake { animation: fx-shake 0.4s ease; }
 @keyframes fx-shake { 20%, 60% { transform: translateX(-5px); } 40%, 80% { transform: translateX(5px); } }
 
-.fx-flash-ok { animation: fx-flash-ok 1.2s ease; }
-.fx-flash-bad { animation: fx-flash-bad 1.2s ease 2; }
-@keyframes fx-flash-ok { 30% { background: rgba(61, 220, 132, 0.25); } }
-@keyframes fx-flash-bad { 30% { background: rgba(255, 92, 122, 0.3); } }
-.servers li { border-radius: 6px; }
 
 .fx-float {
   position: absolute;
