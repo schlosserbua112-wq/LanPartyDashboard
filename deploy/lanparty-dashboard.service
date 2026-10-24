@@ -1,0 +1,20 @@
+[Unit]
+Description=LAN-Party-Dashboard
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=pi
+WorkingDirectory=/opt/lanparty-dashboard
+Environment=PORT=8080
+Environment=DATA_DIR=/opt/lanparty-dashboard/data
+# Passwort in /etc/lanparty-dashboard.env setzen: ADMIN_PASSWORD=...
+EnvironmentFile=-/etc/lanparty-dashboard.env
+ExecStart=/usr/bin/node server.js
+Restart=on-failure
+RestartSec=3
+MemoryMax=128M
+
+[Install]
+WantedBy=multi-user.target

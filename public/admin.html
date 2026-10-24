@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Admin · LAN-Party-Dashboard</title>
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body class="page">
+  <main class="narrow" id="login">
+    <h1>Admin-Anmeldung</h1>
+    <form id="loginForm" class="row">
+      <input type="password" name="password" placeholder="Admin-Passwort" required autofocus>
+      <button>Anmelden</button>
+    </form>
+    <p class="error" id="loginError"></p>
+  </main>
+
+  <main class="admin" id="admin" hidden>
+    <header class="admin-head">
+      <h1>Admin</h1>
+      <nav><a href="/" target="_blank">Anzeige öffnen</a> · <a href="/vote" target="_blank">Abstimmung</a> · <a href="#" id="logout">Abmelden</a></nav>
+    </header>
+
+    <section class="card">
+      <h2>Allgemein</h2>
+      <form id="settingsForm" class="stack">
+        <label>Name der Veranstaltung <input name="eventName"></label>
+        <label>WLAN-Name <input name="wifiSsid"></label>
+        <label>WLAN-Passwort <input name="wifiPassword"></label>
+        <label>Laufschrift <input name="ticker"></label>
+        <button>Speichern</button>
+      </form>
+    </section>
+
+    <section class="card">
+      <h2>Ankündigungen</h2>
+      <form class="row" data-collection="announcements">
+        <input name="text" placeholder="z.B. Pizza ist da!" required>
+        <button>Veröffentlichen</button>
+      </form>
+      <ul class="items" id="list-announcements"></ul>
+    </section>
+
+    <section class="card">
+      <h2>Zeitplan</h2>
+      <form class="row" data-collection="schedule">
+        <input name="time" type="datetime-local" required>
+        <input name="title" placeholder="Programmpunkt, z.B. CS2-Turnier" required>
+        <input name="note" placeholder="Notiz (optional)">
+        <button>Hinzufügen</button>
+      </form>
+      <ul class="items" id="list-schedule"></ul>
+    </section>
+
+    <section class="card">
+      <h2>Spieler &amp; Punkte</h2>
+      <form class="row" data-collection="players">
+        <input name="name" placeholder="Name" required>
+        <input name="seat" placeholder="Platz">
+        <input name="points" type="number" value="0" class="short">
+        <button>Hinzufügen</button>
+      </form>
+      <ul class="items" id="list-players"></ul>
+    </section>
+
+    <section class="card">
+      <h2>Spiele-Abstimmung</h2>
+      <form class="row" data-collection="games">
+        <input name="name" placeholder="Spiel, z.B. Age of Empires II" required>
+        <button>Hinzufügen</button>
+        <button type="button" class="secondary" id="resetVotes">Stimmen zurücksetzen</button>
+      </form>
+      <ul class="items" id="list-games"></ul>
+    </section>
+
+    <section class="card">
+      <h2>Spieleserver</h2>
+      <p class="muted">Der Pi prüft per TCP, ob der Server erreichbar ist.</p>
+      <form class="row" data-collection="servers">
+        <input name="name" placeholder="Name, z.B. Minecraft" required>
+        <input name="host" placeholder="IP oder Hostname" required>
+        <input name="port" type="number" placeholder="Port" class="short" required>
+        <button>Hinzufügen</button>
+      </form>
+      <ul class="items" id="list-servers"></ul>
+    </section>
+  </main>
+
+  <script src="/common.js"></script>
+  <script src="/admin.js"></script>
+</body>
+</html>

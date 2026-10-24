@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>LAN-Party-Dashboard</title>
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body class="display">
+  <header class="topbar">
+    <h1 id="eventName">LAN-Party</h1>
+    <div class="wifi" id="wifi"></div>
+    <div class="clock" id="clock">--:--</div>
+  </header>
+
+  <main class="grid">
+    <section class="card" id="scheduleCard">
+      <h2>Zeitplan</h2>
+      <ol class="schedule" id="schedule"></ol>
+    </section>
+
+    <section class="card" id="announcementsCard">
+      <h2>Ankündigungen</h2>
+      <ul class="announcements" id="announcements"></ul>
+    </section>
+
+    <section class="card" id="leaderboardCard">
+      <h2>Rangliste</h2>
+      <ol class="leaderboard" id="leaderboard"></ol>
+    </section>
+
+    <section class="card" id="votesCard">
+      <h2>Nächstes Spiel? <small id="voteHint"></small></h2>
+      <ul class="votes" id="votes"></ul>
+    </section>
+
+    <section class="card" id="serversCard">
+      <h2>Server</h2>
+      <ul class="servers" id="servers"></ul>
+    </section>
+  </main>
+
+  <footer class="ticker"><span id="ticker"></span><span class="conn" id="conn"></span></footer>
+
+  <script src="/common.js"></script>
+  <script src="/display.js"></script>
+</body>
+</html>
