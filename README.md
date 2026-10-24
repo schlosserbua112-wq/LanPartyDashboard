@@ -15,6 +15,7 @@ Im Admin-Bereich gibt es den Reiter **Nutzer**. Dort legst du Nutzer mit Nutzern
 
 - **Admin**: Nutzer mit Admin-Haken kommen ohne Passwort in `/admin`. Das Master-Passwort aus `ADMIN_PASSWORD` funktioniert weiterhin.
 - **Features**: Pro Nutzer schaltest du Glücksrad, Essensbestellung und Wishlist frei. Die Features sind noch Platzhalter; der Server prüft aber schon die Berechtigung (`/api/features/<name>`).
+- **Umschalter Admin-Modus / Nutzermodus**: Admins wechseln oben zwischen `/admin` und `/me`. Wer mit dem Master-Passwort angemeldet ist, sieht im Nutzermodus alle Features.
 - **Neuer Link** macht den alten Link ungültig und meldet den Nutzer überall ab. **Löschen** entfernt den Nutzer samt Zugang.
 
 ## Warum dieser Stack

@@ -13,9 +13,14 @@
   </main>
 
   <main class="narrow" id="in" hidden>
+    <nav class="mode-switch" id="modeSwitch" aria-label="Modus" hidden>
+      <a href="/admin">Admin-Modus</a>
+      <a href="/me" class="active" aria-current="page">Nutzermodus</a>
+    </nav>
     <h1>Hallo <span id="username"></span>!</h1>
+    <p class="muted" id="masterHint" hidden>Du bist mit dem Admin-Passwort angemeldet und siehst darum alle Features.</p>
     <nav class="links">
-      <a href="/">Anzeige</a> · <a href="/vote">Abstimmen</a><span id="adminLink" hidden> · <a href="/admin">Admin</a></span> · <a href="/logout">Abmelden</a>
+      <a href="/">Anzeige</a> · <a href="/vote">Abstimmen</a> · <a href="/logout" id="logout">Abmelden</a>
     </nav>
 
     <h2 class="section">Deine Features</h2>
@@ -32,7 +37,12 @@
       $('outText').textContent = 'Dieser Link ist ungültig oder wurde ersetzt. Frag den Admin nach einem neuen.';
     }
 
-    fetch('/api/me').then(async (res) => {
+    // Mit dem Admin-Passwort angemeldet (aus dem Admin-Modus): mitschicken.
+    let password = null;
+    try { password = sessionStorage.getItem('lanparty-admin'); } catch {}
+    const auth = password ? { Authorization: 'Bearer ' + password } : {};
+
+    fetch('/api/me', { headers: auth }).then(async (res) => {
       if (!res.ok) {
         $('out').hidden = false;
         return;
@@ -40,7 +50,15 @@
       const me = await res.json();
       $('in').hidden = false;
       $('username').textContent = me.username;
-      $('adminLink').hidden = !me.isAdmin;
+      $('modeSwitch').hidden = !me.isAdmin;
+      $('masterHint').hidden = !me.master;
+      if (me.master) {
+        $('logout').addEventListener('click', (e) => {
+          e.preventDefault();
+          try { sessionStorage.removeItem('lanparty-admin'); } catch {}
+          location.href = '/admin';
+        });
+      }
       const enabled = me.features.filter((f) => f.enabled);
       $('features').innerHTML = enabled.length
         ? enabled.map((f) => `<li><button data-key="${esc(f.key)}"><strong>${esc(f.label)}</strong><small>kommt bald</small></button></li>`).join('')
@@ -51,7 +69,7 @@
     $('features').addEventListener('click', async (e) => {
       const btn = e.target.closest('button[data-key]');
       if (!btn) return;
-      const res = await fetch('/api/features/' + btn.dataset.key);
+      const res = await fetch('/api/features/' + btn.dataset.key, { headers: auth });
       const body = await res.json();
       $('featureMsg').textContent = res.ok
         ? `${btn.querySelector('strong').textContent} ist freigeschaltet, wird aber erst noch gebaut.`

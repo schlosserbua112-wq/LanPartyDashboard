@@ -15,6 +15,7 @@
 }
 
 * { box-sizing: border-box; }
+[hidden] { display: none !important; }
 body { margin: 0; background: var(--bg); color: var(--text); }
 h1, h2 { margin: 0; }
 small, .muted { color: var(--muted); }
@@ -278,3 +279,23 @@ button.danger:hover { background: var(--bad); color: #fff; }
 }
 .feature-grid button:hover { border-color: var(--accent); }
 .feature-grid small { font-weight: normal; }
+
+/* Umschalter Admin-Modus / Nutzermodus */
+.mode-switch {
+  display: inline-flex;
+  padding: 3px;
+  border-radius: 99px;
+  background: var(--card);
+  border: 1px solid var(--line);
+  margin-bottom: 1rem;
+}
+.admin-head .mode-switch { margin-bottom: 0; }
+.mode-switch a {
+  padding: 0.4rem 1rem;
+  border-radius: 99px;
+  color: var(--muted);
+  text-decoration: none;
+  font-weight: 600;
+  font-size: 0.9em;
+}
+.mode-switch a.active { background: var(--accent); color: var(--bg); }

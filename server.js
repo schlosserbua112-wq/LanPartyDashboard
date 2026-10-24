@@ -233,11 +233,26 @@ function currentUser(req) {
   return findUserByToken(parseCookies(req)[SESSION_COOKIE]);
 }
 
+function hasMasterPassword(req) {
+  const header = req.headers.authorization || '';
+  return header.startsWith('Bearer ') && safeEqual(header.slice(7), ADMIN_PASSWORD);
+}
+
 // Admin ist, wer das Master-Passwort mitschickt oder als Admin-Nutzer angemeldet ist.
 function isAdmin(req) {
-  const header = req.headers.authorization || '';
-  if (header.startsWith('Bearer ') && safeEqual(header.slice(7), ADMIN_PASSWORD)) return true;
-  return Boolean(currentUser(req)?.isAdmin);
+  return hasMasterPassword(req) || Boolean(currentUser(req)?.isAdmin);
+}
+
+// Wer per Master-Passwort angemeldet ist, sieht im Nutzermodus alle Features.
+const MASTER_USER = {
+  username: 'Admin',
+  isAdmin: true,
+  master: true,
+  features: Object.fromEntries(FEATURES.map((f) => [f.key, true])),
+};
+
+function viewer(req) {
+  return currentUser(req) || (hasMasterPassword(req) ? MASTER_USER : null);
 }
 
 function newToken() {
@@ -336,11 +351,12 @@ async function handleApi(req, res, pathname) {
   }
 
   if (method === 'GET' && pathname === '/api/me') {
-    const user = currentUser(req);
+    const user = viewer(req);
     if (!user) return sendJson(res, 401, { error: 'Nicht angemeldet' });
     return sendJson(res, 200, {
       username: user.username,
       isAdmin: user.isAdmin,
+      master: Boolean(user.master),
       features: FEATURES.map((f) => ({ ...f, enabled: Boolean(user.features[f.key]) })),
     });
   }
@@ -349,7 +365,7 @@ async function handleApi(req, res, pathname) {
   if (method === 'GET' && pathname.startsWith('/api/features/')) {
     const key = pathname.split('/')[3];
     if (!FEATURE_KEYS.has(key)) return sendJson(res, 404, { error: 'Unbekanntes Feature' });
-    const user = currentUser(req);
+    const user = viewer(req);
     if (!user) return sendJson(res, 401, { error: 'Nicht angemeldet' });
     if (!user.features[key]) return sendJson(res, 403, { error: 'Kein Zugriff auf dieses Feature' });
     return sendJson(res, 200, { feature: key, status: 'kommt bald' });
