@@ -302,7 +302,7 @@ const MIME = {
   '.json': 'application/json',
 };
 
-const PAGES = { '/': 'index.html', '/admin': 'admin.html', '/vote': 'vote.html', '/me': 'me.html' };
+const PAGES = { '/': 'index.html', '/admin': 'admin.html', '/vote': 'vote.html' };
 
 function serveStatic(req, res, pathname) {
   const rel = PAGES[pathname] || pathname.slice(1);
@@ -604,11 +604,11 @@ async function handleWheelAdmin(req, res, method, parts) {
 
 function handleLogin(req, res, url) {
   const user = findUserByToken(url.searchParams.get('token'));
-  if (!user) return redirect(res, '/me?ungueltig=1');
+  if (!user) return redirect(res, '/?ungueltig=1');
   user.lastLogin = Date.now();
   scheduleSave();
   const cookie = `${SESSION_COOKIE}=${encodeURIComponent(user.token)}; Path=/; HttpOnly; SameSite=Lax; Max-Age=31536000`;
-  redirect(res, '/me', { 'Set-Cookie': cookie });
+  redirect(res, '/', { 'Set-Cookie': cookie });
 }
 
 const server = http.createServer(async (req, res) => {
@@ -617,8 +617,10 @@ const server = http.createServer(async (req, res) => {
   try {
     if (pathname.startsWith('/api/')) return await handleApi(req, res, pathname);
     if (req.method === 'GET' && pathname === '/login') return handleLogin(req, res, url);
+    // Früherer Nutzerbereich: alles liegt jetzt im Dashboard.
+    if (req.method === 'GET' && pathname === '/me') return redirect(res, '/');
     if (req.method === 'GET' && pathname === '/logout') {
-      return redirect(res, '/me', { 'Set-Cookie': `${SESSION_COOKIE}=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0` });
+      return redirect(res, '/', { 'Set-Cookie': `${SESSION_COOKIE}=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0` });
     }
     if (req.method !== 'GET' && req.method !== 'HEAD') return sendJson(res, 405, { error: 'Methode nicht erlaubt' });
     serveStatic(req, res, pathname);

@@ -10,6 +10,14 @@
   <header class="topbar">
     <h1 id="eventName">LAN-Party</h1>
     <div class="wifi" id="wifi"></div>
+    <div class="user-bar" id="userBar" hidden>
+      <span>Hallo <strong id="username"></strong></span>
+      <nav class="mode-switch" id="modeSwitch" aria-label="Modus" hidden>
+        <a href="/admin">Admin-Modus</a>
+        <a href="/" class="active" aria-current="page">Nutzermodus</a>
+      </nav>
+      <a href="/logout" id="logout">Abmelden</a>
+    </div>
     <div class="clock" id="clock">--:--</div>
   </header>
 
@@ -21,8 +29,29 @@
 
     <section class="card wheel-card" id="wheelCard">
       <h2>Glücksrad <small id="wheelOpen"></small></h2>
-      <div class="wheel-wrap"><canvas id="wheel"></canvas></div>
-      <p class="wheel-status" id="wheelStatus"></p>
+      <div class="wheel-body">
+        <div class="wheel-main">
+          <div class="wheel-wrap"><canvas id="wheel"></canvas></div>
+          <p class="wheel-status" id="wheelStatus"></p>
+        </div>
+        <!-- Nur für angemeldete Nutzer sichtbar -->
+        <div class="wheel-side" id="wheelSide" hidden>
+          <button id="spinBtn" class="spin-btn" hidden title="Leertaste">Drehen!</button>
+          <form id="entryForm" class="row" hidden>
+            <input name="text" maxlength="40" placeholder="Neuer Eintrag fürs Rad" required>
+            <button>Hinzufügen</button>
+          </form>
+          <p class="muted" id="closedHint" hidden>Die Eingabe ist geschlossen.</p>
+          <p class="error" id="wheelError"></p>
+          <h3 class="side-title">Einträge <small id="entryCount"></small></h3>
+          <ul class="items scroll" id="entries"></ul>
+        </div>
+      </div>
+    </section>
+
+    <section class="card" id="featuresCard" hidden>
+      <h2>Deine Features</h2>
+      <ul class="feature-list" id="features"></ul>
     </section>
 
     <section class="card" id="leaderboardCard">
@@ -40,6 +69,8 @@
       <ul class="servers" id="servers"></ul>
     </section>
   </main>
+
+  <p class="toast" id="toast" hidden></p>
 
   <footer class="ticker"><span id="ticker"></span><span class="conn" id="conn"></span></footer>
 

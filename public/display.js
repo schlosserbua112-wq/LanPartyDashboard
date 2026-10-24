@@ -1,9 +1,16 @@
 'use strict';
 
-// TV-/Beamer-Ansicht: zeigt den Zustand an, ohne selbst etwas zu ändern.
+// Dashboard. Ohne Anmeldung ist es die TV-/Beamer-Anzeige. Wer per Link
+// (oder mit dem Admin-Passwort) angemeldet ist, bedient hier seine Features.
 
 const $ = (id) => document.getElementById(id);
 let current = null;
+let me = null;
+
+// Mit dem Admin-Passwort angemeldet (aus dem Admin-Modus): mitschicken.
+let password = null;
+try { password = sessionStorage.getItem('lanparty-admin'); } catch {}
+const auth = password ? { Authorization: 'Bearer ' + password } : {};
 
 const wheel = createWheel($('wheel'), renderWheelStatus);
 
@@ -14,6 +21,7 @@ function renderWheelStatus({ spinning, spin, lastResult }) {
   else if (spin) el.textContent = `🎉 ${spin.result}`;
   else if (lastResult) el.textContent = `Zuletzt: ${lastResult}`;
   else el.textContent = '';
+  $('spinBtn').disabled = spinning;
 }
 
 function renderClock() {
@@ -49,7 +57,8 @@ function render(state) {
 
   renderSchedule(state.schedule);
 
-  $('wheelOpen').textContent = state.wheel.open ? `Einträge offen · ${location.host}/me` : 'Eingabe geschlossen';
+  $('wheelOpen').textContent = state.wheel.open ? 'Einträge offen' : 'Eingabe geschlossen';
+  if (me) renderWheelSide(state.wheel);
   wheel.update(state.wheel);
 
   const ranked = [...state.players].sort((a, b) => b.points - a.points || a.name.localeCompare(b.name));
@@ -73,6 +82,83 @@ function render(state) {
       }).join('')
     : '<li class="empty">Keine Server eingetragen</li>';
 }
+
+// --- Angemeldete Nutzer ------------------------------------------------------
+
+const hasFeature = (key) => me.isAdmin || me.features.some((f) => f.key === key && f.enabled);
+
+function renderWheelSide(w) {
+  const canSpin = me.isAdmin || w.spinnerIds.includes(me.id);
+  const canAdd = hasFeature('gluecksrad') && (w.open || me.isAdmin);
+  $('spinBtn').hidden = !canSpin;
+  $('entryForm').hidden = !canAdd;
+  $('closedHint').hidden = canAdd || !hasFeature('gluecksrad');
+  $('entryCount').textContent = `(${w.entries.length})`;
+  $('entries').innerHTML = w.entries.length
+    ? w.entries.map((e) => {
+        const canDelete = me.isAdmin || (hasFeature('gluecksrad') && e.ownerId === me.id && w.open);
+        return `<li><span class="grow">${esc(e.text)} <small>von ${esc(e.owner)}</small></span>${canDelete ? `<button class="icon danger" data-entry="${esc(e.id)}" title="Entfernen">✕</button>` : ''}</li>`;
+      }).join('')
+    : '<li class="empty">Noch keine Einträge</li>';
+}
+
+function enterUserMode(user) {
+  me = user;
+  document.body.classList.add('user-mode');
+  $('userBar').hidden = false;
+  $('username').textContent = me.username;
+  $('modeSwitch').hidden = !me.isAdmin;
+  $('wheelSide').hidden = false;
+  if (me.master) {
+    // Abmelden vom Admin-Passwort: zurück in die Admin-Anmeldung.
+    $('logout').addEventListener('click', (e) => {
+      e.preventDefault();
+      try { sessionStorage.removeItem('lanparty-admin'); } catch {}
+      location.href = '/admin';
+    });
+  }
+  // Das Glücksrad ist schon im Dashboard; die übrigen Features sind Platzhalter.
+  const others = me.features.filter((f) => f.enabled && f.key !== 'gluecksrad');
+  $('featuresCard').hidden = !others.length;
+  document.body.classList.toggle('no-features', !others.length);
+  $('features').innerHTML = others.map((f) => `<li><strong>${esc(f.label)}</strong><small>kommt bald</small></li>`).join('');
+  if (current) render(current);
+}
+
+async function wheelApi(method, url, body) {
+  const res = await fetch('/api/wheel/' + url, {
+    method,
+    headers: { 'Content-Type': 'application/json', ...auth },
+    body: body === undefined ? undefined : JSON.stringify(body),
+  });
+  const data = await res.json().catch(() => ({}));
+  $('wheelError').textContent = res.ok ? '' : data.error || 'Fehler';
+  return res.ok;
+}
+
+$('entryForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  if (await wheelApi('POST', 'entries', { text: e.target.elements.text.value })) e.target.reset();
+});
+
+$('entries').addEventListener('click', (e) => {
+  const btn = e.target.closest('button[data-entry]');
+  if (btn) wheelApi('DELETE', 'entries/' + btn.dataset.entry);
+});
+
+$('spinBtn').addEventListener('click', () => wheelApi('POST', 'spin'));
+onSpaceKey(() => me && !$('spinBtn').hidden && !$('spinBtn').disabled && $('spinBtn').click());
+
+if (new URLSearchParams(location.search).has('ungueltig')) {
+  $('toast').textContent = 'Dieser Link ist ungültig oder wurde ersetzt. Frag den Admin nach einem neuen.';
+  $('toast').hidden = false;
+  setTimeout(() => { $('toast').hidden = true; }, 8000);
+  history.replaceState(null, '', '/');
+}
+
+fetch('/api/me', { headers: auth }).then(async (res) => {
+  if (res.ok) enterUserMode(await res.json());
+});
 
 renderClock();
 setInterval(renderClock, 1000);

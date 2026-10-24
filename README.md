@@ -4,24 +4,23 @@ Ein schlankes Dashboard für LAN-Partys, gebaut für den Raspberry Pi. Ein Bilds
 
 | Seite | Wofür |
 |---|---|
-| `http://<pi>:8080/` | Anzeige für TV/Beamer (16:9, Vollbild) |
+| `http://<pi>:8080/` | Dashboard: ohne Anmeldung TV-/Beamer-Anzeige, mit Anmeldung bedienen Nutzer hier ihre Features |
 | `http://<pi>:8080/vote` | Abstimmung per Handy, eine Stimme pro Gerät |
 | `http://<pi>:8080/admin` | Verwaltung (passwortgeschützt) |
-| `http://<pi>:8080/me` | Persönlicher Bereich eines Nutzers |
 
 ## Nutzerverwaltung
 
-Im Admin-Bereich gibt es den Reiter **Nutzer**. Dort legst du Nutzer mit Nutzernamen an und schickst ihnen ihren persönlichen Link (`/login?token=…`). Wer den Link öffnet, ist auf diesem Gerät angemeldet und landet auf `/me`.
+Im Admin-Bereich gibt es den Reiter **Nutzer**. Dort legst du Nutzer mit Nutzernamen an und schickst ihnen ihren persönlichen Link (`/login?token=…`). Wer den Link öffnet, ist auf diesem Gerät angemeldet und sieht im Dashboard seine Features.
 
 - **Admin**: Nutzer mit Admin-Haken kommen ohne Passwort in `/admin`. Das Master-Passwort aus `ADMIN_PASSWORD` funktioniert weiterhin.
 - **Features**: Pro Nutzer schaltest du Glücksrad, Essensbestellung und Wishlist frei. Essensbestellung und Wishlist sind noch Platzhalter.
 
 ## Glücksrad
 
-- Nutzer mit dem Feature „Glücksrad“ tragen auf `/me` Einträge ein und entfernen ihre eigenen (max. 10 pro Nutzer, 60 insgesamt).
+- Nutzer mit dem Feature „Glücksrad“ tragen im Dashboard Einträge ein und entfernen ihre eigenen (max. 10 pro Nutzer, 60 insgesamt).
 - Im Admin-Reiter **Glücksrad** stoppst du die Eingabe, legst fest, wer drehen darf, entfernst Einträge oder leerst das Rad. Admins dürfen immer drehen.
 - Beim Drehen lost der Server den Gewinner aus. TV-Anzeige, Nutzerseiten und Admin-Seite drehen synchron und landen auf demselben Feld.
-- **Umschalter Admin-Modus / Nutzermodus**: Admins wechseln oben zwischen `/admin` und `/me`. Wer mit dem Master-Passwort angemeldet ist, sieht im Nutzermodus alle Features.
+- **Umschalter Admin-Modus / Nutzermodus**: Admins wechseln oben zwischen `/admin` und dem Dashboard. Wer mit dem Master-Passwort angemeldet ist, sieht im Nutzermodus alle Features.
 - **Neuer Link** macht den alten Link ungültig und meldet den Nutzer überall ab. **Löschen** entfernt den Nutzer samt Zugang.
 
 ## Warum dieser Stack
