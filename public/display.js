@@ -69,6 +69,9 @@ function render(state) {
   renderPolls(state.polls);
   if (me && hasFeature('abstimmungen')) loadMyVotes();
 
+  teamReveal.update(state.teams.result);
+  if (me && hasFeature('teams')) renderTeams(state.teams);
+
   $('servers').innerHTML = state.servers.length
     ? state.servers.map((srv) => {
         const st = srv.status;
@@ -133,6 +136,64 @@ $('polls').addEventListener('click', async (e) => {
   if (res.ok) loadMyVotes();
 });
 
+// --- Team-Generator ----------------------------------------------------------
+
+// Auf dem Fernseher bleibt das Ergebnis länger stehen.
+const teamReveal = createTeamReveal({ hold: () => (me ? 9000 : 30000) });
+teamSoundButton($('teamSound'));
+$('teamForm').elements.teamCount.innerHTML = [2, 3, 4, 5, 6, 7, 8].map((n) => `<option>${n}</option>`).join('');
+
+function renderTeams(t) {
+  const inPool = t.pool.some((p) => p.userId === me.id);
+  const canGenerate = me.isAdmin || t.usersCanGenerate;
+  $('teamPoolCount').textContent = `(${t.pool.length} dabei)`;
+  $('teamJoin').hidden = me.master;
+  $('teamJoin').textContent = inPool ? 'Ich bin raus' : 'Ich bin dabei!';
+  $('teamJoin').className = inPool ? 'secondary' : '';
+  $('teamPool').innerHTML = t.pool.length
+    ? t.pool.map((p) => `<li class="${p.userId === me.id ? 'me' : ''}">${esc(p.name)}</li>`).join('')
+    : '<li class="empty">Noch niemand dabei</li>';
+  const form = $('teamForm');
+  form.hidden = !canGenerate;
+  $('teamLocked').hidden = canGenerate;
+  // Nicht überschreiben, während jemand die Auswahl ändert.
+  if (!form.contains(document.activeElement)) {
+    form.elements.teamCount.value = String(t.teamCount);
+    form.elements.balanced.checked = t.balanced;
+  }
+  $('teamGenerate').disabled = t.pool.length < 2 || teamReveal.isRunning();
+  const r = t.result;
+  $('teamResult').innerHTML = !r
+    ? '<p class="empty">Noch keine Teams ausgelost</p>'
+    : r.age < r.duration
+      ? '<p class="empty">Die Teams werden gerade ausgelost…</p>'
+      : teamColumnsHtml(r);
+  // Nach der Show das fertige Ergebnis zeigen.
+  clearTimeout(renderTeams.timer);
+  if (r && r.age < r.duration) renderTeams.timer = setTimeout(() => current && renderTeams(current.teams), r.duration - r.age + 50);
+}
+
+async function teamsApi(url, body) {
+  const res = await fetch('/api/teams/' + url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...auth },
+    body: JSON.stringify(body || {}),
+  });
+  const data = await res.json().catch(() => ({}));
+  $('teamError').textContent = res.ok ? '' : data.error || 'Fehler';
+}
+
+$('teamJoin').addEventListener('click', () => {
+  const inPool = current.teams.pool.some((p) => p.userId === me.id);
+  teamsApi(inPool ? 'leave' : 'join');
+});
+
+$('teamForm').addEventListener('submit', (e) => {
+  e.preventDefault();
+  const f = e.target.elements;
+  teamsApi('generate', { teamCount: Number(f.teamCount.value), balanced: f.balanced.checked });
+});
+
 // --- Angemeldete Nutzer ------------------------------------------------------
 
 const hasFeature = (key) => me.isAdmin || me.features.some((f) => f.key === key && f.enabled);
@@ -159,6 +220,7 @@ function enterUserMode(user) {
   $('username').textContent = me.username;
   $('modeSwitch').hidden = !me.isAdmin;
   $('wheelSide').hidden = false;
+  $('teamsCard').hidden = !hasFeature('teams');
   if (me.master) {
     // Abmelden vom Admin-Passwort: zurück in die Admin-Anmeldung.
     $('logout').addEventListener('click', (e) => {
@@ -168,7 +230,7 @@ function enterUserMode(user) {
     });
   }
   // Das Glücksrad ist schon im Dashboard; die übrigen Features sind Platzhalter.
-  const others = me.features.filter((f) => f.enabled && f.key !== 'gluecksrad' && f.key !== 'abstimmungen');
+  const others = me.features.filter((f) => f.enabled && !['gluecksrad', 'abstimmungen', 'teams'].includes(f.key));
   $('featuresCard').hidden = !others.length;
   document.body.classList.toggle('no-features', !others.length);
   $('features').innerHTML = others.map((f) => `<li><strong>${esc(f.label)}</strong><small>kommt bald</small></li>`).join('');

@@ -12,13 +12,21 @@ Ein schlankes Dashboard für LAN-Partys, gebaut für den Raspberry Pi. Ein Bilds
 Im Admin-Bereich gibt es den Reiter **Nutzer**. Dort legst du Nutzer mit Nutzernamen an und schickst ihnen ihren persönlichen Link (`/login?token=…`). Wer den Link öffnet, ist auf diesem Gerät angemeldet und sieht im Dashboard seine Features.
 
 - **Admin**: Nutzer mit Admin-Haken kommen ohne Passwort in `/admin`. Das Master-Passwort aus `ADMIN_PASSWORD` funktioniert weiterhin.
-- **Features**: Pro Nutzer schaltest du Glücksrad, Abstimmungen, Essensbestellung und Wishlist frei. Essensbestellung und Wishlist sind noch Platzhalter.
+- **Features**: Pro Nutzer schaltest du Glücksrad, Abstimmungen, Team-Generator, Essensbestellung und Wishlist frei. Essensbestellung und Wishlist sind noch Platzhalter.
 
 ## Abstimmungen
 
 - Im Admin-Reiter **Abstimmungen** legst du Umfragen mit Frage und Antworten an, beendest sie, öffnest sie wieder, setzt Stimmen zurück oder löschst sie.
 - Nutzer mit dem Feature „Abstimmungen“ stimmen direkt im Dashboard ab: eine Stimme pro Umfrage, änderbar solange sie läuft. Nochmal auf die eigene Antwort klicken zieht die Stimme zurück.
 - Die TV-Anzeige zeigt alle laufenden Umfragen und das Ergebnis der zuletzt beendeten. Wer wofür gestimmt hat, ist nicht öffentlich.
+
+## Team-Generator
+
+- Nutzer mit dem Feature „Team-Generator“ tragen sich im Dashboard mit „Ich bin dabei!“ ein, wählen die Anzahl der Teams und losen aus.
+- Im Admin-Reiter **Teams** fügst du Nutzer oder Gäste ohne Konto hinzu, entfernst Teilnehmer, legst fest, ob Nutzer selbst auslosen dürfen, und blendest das Ergebnis wieder aus.
+- **Nach Punkten ausgleichen** verteilt die Spieler per Schlangen-Draft nach ihren Punkten aus „Spieler & Punkte“ (gleicher Name), sonst wird rein zufällig gelost. Teamnamen werden zufällig vergeben.
+- Die Auslosung läuft als Show auf allen Bildschirmen gleichzeitig: Namen rattern durch, die Spieler fliegen nacheinander in ihre Teams, am Ende gibt es Konfetti und eine Fanfare. Der Sound lässt sich über 🔊 stummschalten. Die TV-Anzeige zeigt das Ergebnis 30 Sekunden lang.
+- Damit der Fernseher ohne Klick Sound abspielt, startet `deploy/kiosk.sh` Chromium mit `--autoplay-policy=no-user-gesture-required`.
 
 ## Glücksrad
 
