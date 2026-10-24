@@ -1,6 +1,6 @@
 # LAN-Party-Dashboard
 
-Ein schlankes Dashboard für LAN-Partys, gebaut für den Raspberry Pi. Ein Bildschirm oder Beamer zeigt Zeitplan, Glücksrad, Rangliste, laufende Abstimmungen und den Status der Spieleserver. Alles aktualisiert sich live, sobald jemand im Admin-Bereich etwas ändert.
+Ein schlankes Dashboard für LAN-Partys, gebaut für den Raspberry Pi. Ein Bildschirm oder Beamer zeigt Zeitplan, Glücksrad, das globale Leaderboard, laufende Abstimmungen und den Status der Spieleserver. Alles aktualisiert sich live, sobald jemand im Admin-Bereich etwas ändert.
 
 | Seite | Wofür |
 |---|---|
@@ -19,6 +19,14 @@ Im Admin-Bereich gibt es den Reiter **Nutzer**. Dort legst du Nutzer mit Nutzern
 - Im Admin-Reiter **Abstimmungen** legst du Umfragen mit Frage und Antworten an, beendest sie, öffnest sie wieder, setzt Stimmen zurück oder löschst sie.
 - Nutzer mit dem Feature „Abstimmungen“ stimmen direkt im Dashboard ab: eine Stimme pro Umfrage, änderbar solange sie läuft. Nochmal auf die eigene Antwort klicken zieht die Stimme zurück.
 - Die TV-Anzeige zeigt alle laufenden Umfragen und das Ergebnis der zuletzt beendeten. Wer wofür gestimmt hat, ist nicht öffentlich.
+
+## Globales Leaderboard
+
+- Eine Rangliste über alle Spiele der LAN-Party. Jeder Nutzer bekommt automatisch einen Spieler; Gäste ohne Anmeldung legst du im Admin-Reiter **Leaderboard** an und kannst sie später mit einem Nutzer verknüpfen.
+- Punkte vergibst du dort an einen oder mehrere Spieler gleichzeitig (z.B. das ganze Siegerteam), mit Grund und optional einem Spiel. Jede Vergabe steht im **Verlauf** und lässt sich einzeln zurücknehmen. Gleiche Punktzahl heißt gleicher Platz.
+- Mit Spielangabe gibt es zusätzlich eine Wertung pro Spiel. Die TV-Anzeige wechselt alle 12 Sekunden zwischen Gesamt und den einzelnen Spielen, angemeldete Nutzer wählen per Klick und sehen ihre eigene Zeile hervorgehoben.
+- Animationen und Sounds: Plätze tauschen sichtbar die Position, Punkte zählen hoch, neue Vergaben erscheinen im Live-Feed, und eine neue Führung wird mit Konfetti und Fanfare gefeiert. Den Ton schaltet 🔊 im Leaderboard ab. Browser spielen Ton erst nach dem ersten Klick ab; der Kiosk-Modus (`deploy/kiosk.sh`) erlaubt ihn von Anfang an.
+- Für spätere Features (Turniere, Achievements) gibt es im Server `awardPoints({ userId | playerId, points, reason, game, source, refId })` und `revokeScores(refId)`.
 
 ## Glücksrad
 

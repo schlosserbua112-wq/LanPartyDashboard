@@ -30,6 +30,7 @@
       <button type="button" data-view="dashboard" class="active">Dashboard</button>
       <button type="button" data-view="wheel">Glücksrad</button>
       <button type="button" data-view="polls">Abstimmungen</button>
+      <button type="button" data-view="leaderboard">Leaderboard</button>
       <button type="button" data-view="users">Nutzer</button>
     </nav>
 
@@ -55,17 +56,6 @@
         <button>Hinzufügen</button>
       </form>
       <ul class="items" id="list-schedule"></ul>
-    </section>
-
-    <section class="card">
-      <h2>Spieler &amp; Punkte</h2>
-      <form class="row" data-collection="players">
-        <input name="name" placeholder="Name" required>
-        <input name="seat" placeholder="Platz">
-        <input name="points" type="number" value="0" class="short">
-        <button>Hinzufügen</button>
-      </form>
-      <ul class="items" id="list-players"></ul>
     </section>
 
     <section class="card">
@@ -132,6 +122,59 @@
         <h2>Abstimmungen</h2>
         <ul class="poll-admin-list" id="pollList"></ul>
       </section>
+    </div>
+
+    <div class="view lb-admin" id="view-leaderboard" hidden>
+      <div>
+        <section class="card">
+          <h2>Punkte vergeben</h2>
+          <form id="scoreForm" class="stack">
+            <fieldset class="features"><legend>Spieler, auch mehrere</legend><div class="lb-picker" id="scorePlayers"></div></fieldset>
+            <label>Punkte <input name="points" type="number" value="10" required></label>
+            <div class="lb-quick" id="scoreQuick">
+              <button type="button" data-points="1">+1</button>
+              <button type="button" data-points="5">+5</button>
+              <button type="button" data-points="10">+10</button>
+              <button type="button" data-points="25">+25</button>
+              <button type="button" data-points="50">+50</button>
+              <button type="button" data-points="100">+100</button>
+              <button type="button" class="neg" data-points="-5">−5</button>
+              <button type="button" class="neg" data-points="-10">−10</button>
+            </div>
+            <label>Grund <input name="reason" maxlength="120" placeholder="z.B. Sieg im CS2-Match"></label>
+            <label>Spiel (optional, für die Wertung pro Spiel) <input name="game" maxlength="40" list="gameList" placeholder="z.B. CS2"></label>
+            <datalist id="gameList"></datalist>
+            <button>Punkte vergeben</button>
+            <p class="error" id="scoreError"></p>
+          </form>
+          <p class="muted">Ein Klick auf einen Schnellwert vergibt die Punkte sofort an die gewählten Spieler.</p>
+        </section>
+
+        <section class="card">
+          <h2>Spieler</h2>
+          <p class="muted">Jeder Nutzer bekommt automatisch einen Spieler. Gäste ohne Anmeldung legst du hier an und kannst sie später mit einem Nutzer verknüpfen.</p>
+          <form class="row" id="playerForm">
+            <input name="name" placeholder="Name" required maxlength="60">
+            <input name="seat" placeholder="Platz" class="short" maxlength="20">
+            <button>Hinzufügen</button>
+          </form>
+          <ul class="items" id="list-players"></ul>
+        </section>
+      </div>
+
+      <div>
+        <section class="card">
+          <h2>Rangliste</h2>
+          <ol class="items" id="lbRanking"></ol>
+        </section>
+
+        <section class="card">
+          <h2>Verlauf</h2>
+          <p class="muted">✕ nimmt eine Buchung zurück.</p>
+          <ul class="items scroll" id="scoreHistory"></ul>
+          <div class="toggle-row"><button type="button" class="secondary danger" id="resetScores">Alle Punkte zurücksetzen</button></div>
+        </section>
+      </div>
     </div>
 
     <div class="view" id="view-users" hidden>
