@@ -19,6 +19,12 @@ const leaderboard = createLeaderboard(
   { list: $('leaderboard'), tabs: $('lbTabs'), feed: $('lbFeed'), sound: $('lbSound') },
   { limit: 8, feed: 3, rotate: true },
 );
+const tournaments = createTournaments({
+  el: $('tournament'),
+  mode: 'tv',
+  headers: () => auth,
+  getMe: () => me && { id: me.id, isAdmin: me.isAdmin, master: me.master, canPlay: hasFeature('turniere') },
+});
 
 function renderWheelStatus({ spinning, spin, lastResult }) {
   const el = $('wheelStatus');
@@ -70,6 +76,11 @@ function render(state) {
   leaderboard.update(state.leaderboard);
 
   renderPolls(state.polls);
+
+  const hasTournament = state.tournaments.length > 0;
+  $('tournamentCard').hidden = !hasTournament;
+  document.body.classList.toggle('has-tournament', hasTournament);
+  tournaments.update(state.tournaments);
   if (me && hasFeature('abstimmungen')) loadMyVotes();
 
   $('servers').innerHTML = state.servers.length
@@ -172,10 +183,11 @@ function enterUserMode(user) {
     });
   }
   // Das Glücksrad ist schon im Dashboard; die übrigen Features sind Platzhalter.
-  const others = me.features.filter((f) => f.enabled && f.key !== 'gluecksrad' && f.key !== 'abstimmungen');
+  const others = me.features.filter((f) => f.enabled && !['gluecksrad', 'abstimmungen', 'turniere'].includes(f.key));
   $('featuresCard').hidden = !others.length;
   document.body.classList.toggle('no-features', !others.length);
   $('features').innerHTML = others.map((f) => `<li><strong>${esc(f.label)}</strong><small>kommt bald</small></li>`).join('');
+  tournaments.setMode('user');
   if (current) render(current);
 }
 

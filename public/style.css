@@ -164,7 +164,7 @@ ul, ol { list-style: none; margin: 0; padding: 0; }
 a { color: var(--accent); }
 .page h1 { margin-bottom: 0.8rem; }
 
-input, button, textarea {
+input, button, textarea, select {
   font: inherit;
   color: inherit;
   border-radius: 8px;
@@ -627,3 +627,171 @@ textarea { resize: vertical; }
 .lb-admin .items.scroll { max-height: 60vh; }
 .lb-admin .error:empty { display: none; }
 @media (max-width: 900px) { .lb-admin { grid-template-columns: 1fr; } }
+
+/* ------------------------------------------------------------ Turniere */
+
+#tournamentCard { grid-area: tournament; display: flex; flex-direction: column; }
+.tournament { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.has-tournament .grid {
+  grid-template-rows: 1fr 0.7fr 1.5fr;
+  grid-template-areas:
+    "schedule wheel leaderboard"
+    "votes wheel servers"
+    "tournament tournament tournament";
+}
+.user-mode.has-tournament .grid {
+  grid-template-rows: auto auto auto minmax(220px, auto);
+  grid-template-areas:
+    "wheel wheel schedule"
+    "wheel wheel leaderboard"
+    "tournament tournament tournament"
+    "votes features servers";
+}
+.user-mode.has-tournament.no-features .grid {
+  grid-template-areas:
+    "wheel wheel schedule"
+    "wheel wheel leaderboard"
+    "tournament tournament tournament"
+    "votes servers servers";
+}
+.user-mode #tournamentCard { min-height: 320px; }
+@media (max-width: 1000px) {
+  .user-mode.has-tournament .grid, .user-mode.has-tournament.no-features .grid {
+    grid-template-columns: 1fr;
+    grid-template-areas: "wheel" "schedule" "leaderboard" "tournament" "votes" "features" "servers";
+  }
+}
+
+.t-top { display: flex; align-items: flex-start; gap: 0.5rem; }
+.t-tabs { display: flex; flex-wrap: wrap; gap: 0.4rem; flex: 1; margin-bottom: 0.6rem; }
+.t-tabs button { padding: 0.25rem 0.8rem; font-size: 0.85em; background: var(--card-2); color: var(--muted); border: 1px solid var(--line); border-radius: 99px; }
+.t-tabs button.active { color: var(--bg); background: var(--accent); border-color: var(--accent); }
+.t-tabs .live { display: inline-block; width: 0.5em; height: 0.5em; border-radius: 50%; background: var(--bad); margin-left: 0.3em; animation: t-blink 1.2s infinite; vertical-align: middle; }
+#tournamentCard { position: relative; }
+.t-sound { position: absolute; top: 0.7rem; right: 1.2rem; padding: 0.1rem 0.4rem; font-size: 1rem; }
+.t-top:not(:has(.t-tabs)) { display: contents; }
+.t-body { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 0.6rem; }
+.t-body.switching { animation: t-fade 0.5s ease; }
+.t-head { display: flex; align-items: center; flex-wrap: wrap; gap: 0.4rem 0.8rem; }
+.t-head .badge { margin-left: 0; }
+.t-name { font-size: 1.25em; }
+.t-game { color: var(--accent-2); font-weight: 600; }
+
+/* Anmeldung */
+.t-signup { display: grid; gap: 0.8rem; justify-items: start; }
+.t-chips { display: flex; flex-wrap: wrap; gap: 0.4rem; }
+.t-chips li { padding: 0.3rem 0.8rem; border-radius: 99px; background: var(--card-2); border: 1px solid var(--line); }
+.t-chips li.pop { animation: t-pop 0.6s cubic-bezier(.2, 1.6, .4, 1); border-color: var(--accent); }
+.t-join { font-size: 1.1em; padding: 0.7rem 1.4rem; animation: t-pulse 2s infinite; }
+
+/* Turnierbaum */
+.t-bracket { display: flex; flex: 1; min-height: 0; overflow: auto; padding-bottom: 0.3rem; }
+.t-round { display: flex; flex-direction: column; flex: 1 0 12em; }
+.t-round h4 { margin: 0 0 0.3rem; padding: 0 1rem; font-size: 0.75em; text-transform: uppercase; letter-spacing: 0.1em; color: var(--muted); text-align: center; }
+.t-round:last-child h4 { color: var(--warn); }
+.t-slots { flex: 1; display: flex; flex-direction: column; }
+.t-slot { flex: 1; display: flex; align-items: center; position: relative; padding: 0.25rem 1rem; }
+.t-round:first-child .t-slot { padding-left: 0; }
+.t-round:last-child .t-slot { padding-right: 0; }
+.t-round:not(:last-child) .t-slot::after { content: ''; position: absolute; right: 0; top: 50%; width: 1rem; border-top: 2px solid var(--line); }
+.t-round:not(:last-child) .t-slot::before { content: ''; position: absolute; right: 0; border-right: 2px solid var(--line); }
+.t-round:not(:last-child) .t-slot:nth-child(odd)::before { top: 50%; bottom: 0; }
+.t-round:not(:last-child) .t-slot:nth-child(even)::before { top: 0; bottom: 50%; }
+.t-round:not(:last-child) .t-slot.done::after, .t-round:not(:last-child) .t-slot.done::before { border-color: var(--accent); }
+.t-round:not(:first-child) .t-match::before { content: ''; position: absolute; left: -1rem; top: 50%; width: 1rem; border-top: 2px solid var(--line); }
+
+.t-match {
+  position: relative;
+  width: 100%;
+  background: var(--card-2);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  display: grid;
+  transition: transform 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
+}
+.t-match.bye { opacity: 0.45; }
+.t-match.clickable { cursor: pointer; }
+.t-match.clickable:hover, .t-match.clickable:focus-visible { border-color: var(--accent); transform: translateY(-2px); box-shadow: 0 4px 18px rgba(56, 225, 255, 0.25); outline: none; }
+.t-match.pop { animation: t-pop 0.7s cubic-bezier(.2, 1.6, .4, 1), t-glow 2.4s ease; }
+.t-side { display: flex; align-items: center; gap: 0.5rem; padding: 0.3rem 0.6rem; min-width: 0; }
+.t-side + .t-side { border-top: 1px solid var(--line); }
+.t-player { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.t-player em { color: var(--muted); font-weight: normal; }
+.t-score { font-weight: 700; font-variant-numeric: tabular-nums; min-width: 1.2em; text-align: right; }
+.t-side.won { color: var(--text); font-weight: 700; }
+.t-side.won .t-player::before { content: '▸ '; color: var(--accent); }
+.t-side.lost { color: var(--muted); }
+.t-side.lost .t-player { text-decoration: line-through; text-decoration-color: rgba(255, 92, 122, 0.6); }
+.entering .t-match { animation: t-enter 0.5s ease backwards; animation-delay: calc(var(--i) * 45ms); }
+
+/* Sieger */
+.t-champion { display: flex; align-items: center; gap: 0.8rem; padding: 0.5rem 1rem; border-radius: 12px; border: 1px solid var(--warn); background: linear-gradient(90deg, rgba(255, 200, 87, 0.18), rgba(177, 108, 255, 0.12)); margin-left: auto; }
+.t-champion small { display: block; color: var(--warn); text-transform: uppercase; letter-spacing: 0.12em; font-size: 0.7em; }
+.t-champion strong {
+  font-size: 1.4em;
+  background: linear-gradient(90deg, var(--warn), #fff, var(--warn));
+  background-size: 200% auto;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: t-shine 3s linear infinite;
+}
+.trophy { font-size: 2em; display: inline-block; animation: t-bounce 2s ease-in-out infinite; }
+.t-champion.celebrate { animation: t-pop 0.9s cubic-bezier(.2, 1.6, .4, 1); }
+.t-champion.celebrate .trophy { animation: t-spin-in 1s ease, t-bounce 2s ease-in-out 1s infinite; }
+
+/* Jeder gegen jeden */
+.t-liga { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr); gap: 1rem; overflow: auto; }
+.t-table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; align-self: start; }
+.t-table th { color: var(--muted); font-weight: normal; font-size: 0.8em; padding: 0.2rem 0.4rem; }
+.t-table td { padding: 0.35rem 0.4rem; text-align: center; border-top: 1px solid var(--line); }
+.t-table .left { text-align: left; }
+.t-table tr.leader td { color: var(--warn); font-weight: 700; }
+.t-liga-rounds { display: grid; grid-template-columns: repeat(auto-fill, minmax(11em, 1fr)); gap: 0.8rem; align-content: start; }
+.t-liga-round { display: grid; gap: 0.4rem; align-content: start; }
+.t-liga-round h4 { margin: 0; font-size: 0.75em; text-transform: uppercase; letter-spacing: 0.1em; color: var(--muted); }
+.entering.t-liga .t-match { animation: t-enter 0.5s ease backwards; animation-delay: calc(var(--i) * 30ms); }
+@media (max-width: 1000px) { .t-liga { grid-template-columns: 1fr; } }
+
+/* Ergebnis-Dialog */
+.t-dialog { background: var(--card); color: var(--text); border: 1px solid var(--line); border-radius: 14px; padding: 1.2rem 1.4rem; min-width: min(460px, 92vw); }
+.t-dialog::backdrop { background: rgba(5, 8, 15, 0.7); backdrop-filter: blur(3px); }
+.t-dialog[open] { animation: t-pop 0.35s cubic-bezier(.2, 1.4, .4, 1); }
+.t-dialog h3 { margin: 0; }
+.t-score-row { display: flex; align-items: end; gap: 0.8rem; }
+.t-score-row label { flex: 1; color: var(--text) !important; font-weight: 600; }
+.t-score-row input { font-size: 1.4em; text-align: center; }
+.t-score-row .vs { font-size: 1.6em; padding-bottom: 0.4rem; color: var(--muted); }
+.t-dialog .error:empty { display: none; }
+
+.confetti { position: fixed; inset: 0; pointer-events: none; z-index: 100; }
+
+@keyframes t-pop { 0% { transform: scale(0.85); } 60% { transform: scale(1.06); } 100% { transform: scale(1); } }
+@keyframes t-glow { 0%, 40% { box-shadow: 0 0 0 2px var(--accent), 0 0 24px rgba(56, 225, 255, 0.6); } 100% { box-shadow: none; } }
+@keyframes t-enter { from { opacity: 0; transform: translateX(-16px) scale(0.95); } }
+@keyframes t-fade { from { opacity: 0; transform: translateY(6px); } }
+@keyframes t-blink { 50% { opacity: 0.2; } }
+@keyframes t-pulse { 0%, 100% { box-shadow: 0 0 0 0 rgba(56, 225, 255, 0.5); } 50% { box-shadow: 0 0 0 10px rgba(56, 225, 255, 0); } }
+@keyframes t-shine { to { background-position: 200% center; } }
+@keyframes t-bounce { 0%, 100% { transform: translateY(0) rotate(-4deg); } 50% { transform: translateY(-6px) rotate(4deg); } }
+@keyframes t-spin-in { from { transform: scale(0) rotate(-540deg); } }
+@media (prefers-reduced-motion: reduce) {
+  .t-match, .t-chips li, .trophy, .t-champion, .t-champion strong, .t-join, .t-body, .t-dialog { animation: none !important; }
+}
+
+/* Admin: Turniere */
+.tournaments-layout { grid-template-columns: minmax(300px, 1fr) minmax(0, 2.4fr); align-items: start; }
+.tournaments-layout .tournament { min-height: 200px; }
+.t-admin-actions { display: grid; gap: 0.6rem; margin-top: 1rem; padding-top: 1rem; border-top: 1px solid var(--line); }
+.t-remove { padding: 0 0.2rem; background: none; color: var(--muted); border: none; }
+.t-remove:hover { color: var(--bad); }
+.radio-row { display: flex; gap: 1.2rem; flex-wrap: wrap; }
+@media (max-width: 900px) { .tournaments-layout { grid-template-columns: 1fr; } }
+
+/* TV-Anzeige: kompakter, damit der ganze Baum auf den Bildschirm passt */
+.display:not(.user-mode) .t-body { font-size: 0.8em; gap: 0.4rem; }
+.display:not(.user-mode) .t-slot { padding-top: 0.1rem; padding-bottom: 0.1rem; }
+.display:not(.user-mode) .t-side { padding: 0.1rem 0.5rem; }
+.display:not(.user-mode) .t-tabs { margin-bottom: 0.2rem; }
+.display:not(.user-mode) .t-champion { padding: 0.2rem 0.8rem; }
+.display:not(.user-mode) .trophy { font-size: 1.5em; }

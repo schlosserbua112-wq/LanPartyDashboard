@@ -31,6 +31,7 @@
       <button type="button" data-view="wheel">Glücksrad</button>
       <button type="button" data-view="polls">Abstimmungen</button>
       <button type="button" data-view="leaderboard">Leaderboard</button>
+      <button type="button" data-view="tournaments">Turniere</button>
       <button type="button" data-view="users">Nutzer</button>
     </nav>
 
@@ -177,6 +178,32 @@
       </div>
     </div>
 
+    <div class="view tournaments-layout" id="view-tournaments" hidden>
+      <section class="card">
+        <h2>Neues Turnier</h2>
+        <form id="tournamentForm" class="stack">
+          <label>Name <input name="name" maxlength="80" required placeholder="z.B. Rocket-League-Cup"></label>
+          <label>Spiel <input name="game" maxlength="60" placeholder="z.B. Rocket League (optional)"></label>
+          <div class="radio-row">
+            <label class="check"><input type="radio" name="format" value="ko" checked> K.-o.-System</label>
+            <label class="check"><input type="radio" name="format" value="liga"> Jeder gegen jeden</label>
+          </div>
+          <label class="check"><input type="checkbox" name="open" checked> Nutzer dürfen sich selbst anmelden</label>
+          <fieldset class="features" id="tournamentUsers"><legend>Nutzer direkt eintragen</legend></fieldset>
+          <label>Weitere Teilnehmer oder Teams, einer pro Zeile <textarea name="names" rows="4" placeholder="Team Rot&#10;Team Blau"></textarea></label>
+          <button>Turnier anlegen</button>
+          <p class="error" id="tournamentError"></p>
+        </form>
+        <p class="muted">Nutzer mit dem Feature „Turniere“ melden sich im Dashboard an und tragen die Ergebnisse ihrer eigenen Spiele ein. Beim Start wird der Turnierbaum zufällig ausgelost, bei ungerader Teilnehmerzahl gibt es Freilose. Ist das Turnier beendet, bekommen die Plätze 1, 2 und 3 automatisch 25, 15 und 10 Punkte im Leaderboard.</p>
+      </section>
+
+      <section class="card">
+        <h2>Turniere</h2>
+        <div class="tournament" id="tournamentAdmin"></div>
+        <div class="t-admin-actions" id="tournamentActions" hidden></div>
+      </section>
+    </div>
+
     <div class="view" id="view-users" hidden>
       <section class="card">
         <h2>Nutzer anlegen</h2>
@@ -198,6 +225,7 @@
 
   <script src="/common.js"></script>
   <script src="/wheel.js"></script>
+  <script src="/tournament.js"></script>
   <script src="/admin.js"></script>
 </body>
 </html>

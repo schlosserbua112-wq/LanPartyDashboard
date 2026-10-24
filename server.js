@@ -38,6 +38,7 @@ const DEFAULT_STATE = {
   polls: [],
   servers: [],
   users: [],
+  tournaments: [],
   wheel: { open: true, entries: [], spinnerIds: [], spin: null },
 };
 
@@ -45,6 +46,7 @@ const DEFAULT_STATE = {
 const FEATURES = [
   { key: 'gluecksrad', label: 'Glücksrad' },
   { key: 'abstimmungen', label: 'Abstimmungen' },
+  { key: 'turniere', label: 'Turniere' },
   { key: 'essen', label: 'Essensbestellung' },
   { key: 'wishlist', label: 'Wishlist' },
 ];
@@ -88,6 +90,7 @@ function loadState() {
       state.polls = [newPoll('Was spielen wir als Nächstes?', raw.games.map((g) => g.name))];
     }
     if (Array.isArray(raw.users)) state.users = raw.users;
+    if (Array.isArray(raw.tournaments)) state.tournaments = raw.tournaments;
     if (Array.isArray(raw.players)) state.players = raw.players;
     if (Array.isArray(raw.scores)) {
       state.scores = raw.scores;
@@ -180,6 +183,7 @@ function publicState() {
     players: lb.rowsInRosterOrder,
     leaderboard: { rows: lb.rows, games: lb.games, recent: lb.recent },
     polls: state.polls.map(pollView),
+    tournaments: state.tournaments.map(tournamentView),
     servers: state.servers.map((s) => ({ ...s, status: serverStatus[s.id] || null })),
   };
 }
@@ -361,6 +365,7 @@ async function handleApi(req, res, pathname) {
 
   if (method === 'GET' && pathname === '/api/health') return sendJson(res, 200, { ok: true });
 
+  if (pathname.startsWith('/api/tournaments/')) return handleTournaments(req, res, method, pathname.split('/').slice(3));
   if (pathname.startsWith('/api/polls/')) return handlePolls(req, res, method, pathname.split('/').slice(3));
 
   if (method === 'GET' && pathname === '/api/me') {
@@ -403,6 +408,7 @@ async function handleApi(req, res, pathname) {
   if (parts[0] === 'users') return handleUsers(req, res, method, parts);
   if (parts[0] === 'wheel') return handleWheelAdmin(req, res, method, parts);
   if (parts[0] === 'polls') return handlePollsAdmin(req, res, method, parts);
+  if (parts[0] === 'tournaments') return handleTournamentsAdmin(req, res, method, parts);
   if (parts[0] === 'players') return handlePlayersAdmin(req, res, method, parts);
   if (parts[0] === 'scores') return handleScoresAdmin(req, res, method, parts);
 
@@ -501,6 +507,7 @@ async function handleUsers(req, res, method, parts) {
     state.users.splice(state.users.indexOf(user), 1);
     state.wheel.spinnerIds = state.wheel.spinnerIds.filter((uid) => uid !== user.id);
     for (const poll of state.polls) delete poll.votes[user.id];
+    removeUserFromTournaments(user.id);
     // Der Spieler bleibt samt Punkten im Leaderboard, nur ohne Anmeldung.
     for (const p of state.players) if (p.userId === user.id) p.userId = null;
     changed();
@@ -887,6 +894,372 @@ async function handleScoresAdmin(req, res, method, parts) {
     const index = state.scores.findIndex((s) => s.id === parts[1]);
     if (index === -1) return sendJson(res, 404, { error: 'Buchung nicht gefunden' });
     state.scores.splice(index, 1);
+    changed();
+    return sendJson(res, 200, { ok: true });
+  }
+
+  return sendJson(res, 405, { error: 'Methode nicht erlaubt' });
+}
+
+// ---------------------------------------------------------------------------
+// Turniere
+
+const MAX_TOURNAMENT_PARTICIPANTS = 64;
+const MAX_SCORE = 9999;
+const TOURNAMENT_FORMATS = { ko: 'K.-o.-System', liga: 'Jeder gegen jeden' };
+
+function newMatch(a, b) {
+  return { id: crypto.randomUUID(), a, b, done: false, winner: null, scoreA: null, scoreB: null };
+}
+
+function shuffle(list) {
+  const out = [...list];
+  for (let i = out.length - 1; i > 0; i--) {
+    const j = crypto.randomInt(i + 1);
+    [out[i], out[j]] = [out[j], out[i]];
+  }
+  return out;
+}
+
+// Bit-Umkehr-Reihenfolge: Freilose verteilen sich so gleichmäßig über den Turnierbaum.
+function spreadOrder(n) {
+  const bits = Math.log2(n);
+  return [...Array(n).keys()].map((i) => {
+    let r = 0;
+    for (let b = 0; b < bits; b++) if (i & (1 << b)) r |= 1 << (bits - 1 - b);
+    return r;
+  });
+}
+
+function buildKo(t) {
+  const ids = shuffle(t.participants.map((p) => p.id));
+  const size = 2 ** Math.ceil(Math.log2(ids.length));
+  const byeSlots = new Set(spreadOrder(size / 2).slice(0, size - ids.length));
+  t.rounds = [];
+  t.rounds.push([...Array(size / 2).keys()].map((i) => {
+    if (!byeSlots.has(i)) return newMatch(ids.shift(), ids.shift());
+    return { ...newMatch(ids.shift(), null), bye: true };
+  }));
+  for (let n = size / 4; n >= 1; n /= 2) t.rounds.push([...Array(n)].map(() => newMatch(null, null)));
+  // Wer ein Freilos hat, ist direkt eine Runde weiter.
+  t.rounds[0].forEach((m, i) => m.bye && setKoWinner(t, 0, i, m.a));
+}
+
+// Jeder gegen jeden nach dem Rundenturnier-Verfahren: Pro Runde spielt jeder höchstens einmal.
+function buildLiga(t) {
+  const ids = shuffle(t.participants.map((p) => p.id));
+  if (ids.length % 2) ids.push(null);
+  t.rounds = [];
+  for (let r = 0; r < ids.length - 1; r++) {
+    const round = [];
+    for (let i = 0; i < ids.length / 2; i++) {
+      const a = ids[i];
+      const b = ids[ids.length - 1 - i];
+      if (a && b) round.push(r % 2 ? newMatch(b, a) : newMatch(a, b));
+    }
+    t.rounds.push(round);
+    ids.splice(1, 0, ids.pop());
+  }
+}
+
+function finishTournament(t, winnerId) {
+  t.winnerId = winnerId;
+  t.status = 'beendet';
+  t.finishedAt = Date.now();
+}
+
+function reopenTournament(t) {
+  t.winnerId = null;
+  t.status = 'laeuft';
+  t.finishedAt = null;
+}
+
+// Nimmt ein K.-o.-Ergebnis zurück, samt allen Spielen, die darauf aufbauen.
+function clearKo(t, r, i) {
+  const m = t.rounds[r][i];
+  if (!m.done) return;
+  Object.assign(m, { done: false, winner: null, scoreA: null, scoreB: null });
+  if (r + 1 < t.rounds.length) {
+    clearKo(t, r + 1, i >> 1);
+    t.rounds[r + 1][i >> 1][i % 2 ? 'b' : 'a'] = null;
+  } else {
+    reopenTournament(t);
+  }
+}
+
+function setKoWinner(t, r, i, winner) {
+  const m = t.rounds[r][i];
+  if (m.winner !== winner) clearKo(t, r, i);
+  Object.assign(m, { done: true, winner });
+  if (r + 1 < t.rounds.length) t.rounds[r + 1][i >> 1][i % 2 ? 'b' : 'a'] = winner;
+  else finishTournament(t, winner);
+}
+
+// Tabelle für "Jeder gegen jeden": Sieg 3 Punkte, Unentschieden 1.
+function standings(t) {
+  const rows = new Map(t.participants.map((p) => [p.id, { id: p.id, name: p.name, played: 0, won: 0, drawn: 0, lost: 0, scored: 0, conceded: 0, points: 0 }]));
+  for (const m of t.rounds.flat()) {
+    if (!m.done) continue;
+    for (const [me, other, mine, theirs] of [[m.a, m.b, m.scoreA, m.scoreB], [m.b, m.a, m.scoreB, m.scoreA]]) {
+      const row = rows.get(me);
+      if (!row || !rows.has(other)) continue;
+      row.played++;
+      row.scored += mine;
+      row.conceded += theirs;
+      if (mine > theirs) { row.won++; row.points += 3; } else if (mine === theirs) { row.drawn++; row.points += 1; } else row.lost++;
+    }
+  }
+  return [...rows.values()].sort((x, y) => y.points - x.points
+    || (y.scored - y.conceded) - (x.scored - x.conceded)
+    || y.scored - x.scored
+    || x.name.localeCompare(y.name));
+}
+
+function updateLigaStatus(t) {
+  const all = t.rounds.flat();
+  if (all.length && all.every((m) => m.done)) {
+    if (t.status !== 'beendet') finishTournament(t, standings(t)[0].id);
+  } else if (t.status === 'beendet') {
+    reopenTournament(t);
+  }
+}
+
+// Platzierungen fürs globale Leaderboard: 1. und 2. Platz, dazu im K.-o.-System
+// beide Halbfinal-Verlierer bzw. bei "Jeder gegen jeden" der Tabellendritte.
+const TOURNAMENT_POINTS = { 1: 25, 2: 15, 3: 10 };
+
+function placements(t) {
+  if (t.status !== 'beendet') return [];
+  if (t.format === 'liga') return standings(t).slice(0, 3).map((row, i) => ({ id: row.id, place: i + 1 }));
+  const final = t.rounds[t.rounds.length - 1][0];
+  const out = [{ id: final.winner, place: 1 }, { id: final.winner === final.a ? final.b : final.a, place: 2 }];
+  if (t.rounds.length > 1) {
+    for (const m of t.rounds[t.rounds.length - 2]) if (!m.bye && m.winner) out.push({ id: m.winner === m.a ? m.b : m.a, place: 3 });
+  }
+  return out.filter((x) => x.id);
+}
+
+// Bucht die Turnierpunkte neu, sobald sich das Endergebnis ändert. Teilnehmer
+// ohne Nutzer bekommen Punkte nur, wenn es einen gleichnamigen Spieler gibt.
+function syncTournamentScores(t) {
+  const result = placements(t);
+  const key = JSON.stringify(result);
+  if (t.awarded === key) return;
+  t.awarded = key;
+  revokeScores(t.id);
+  for (const { id, place } of result) {
+    const p = t.participants.find((x) => x.id === id);
+    if (!p) continue;
+    const player = p.userId ? null : state.players.find((x) => x.name.toLowerCase() === p.name.toLowerCase());
+    if (!p.userId && !player) continue;
+    try {
+      awardPoints({
+        userId: p.userId || undefined,
+        playerId: player ? player.id : undefined,
+        points: TOURNAMENT_POINTS[place],
+        reason: `${t.name}: ${place}. Platz`,
+        game: t.game,
+        source: 'tournament',
+        refId: t.id,
+        by: 'Turnier',
+      });
+    } catch (err) {
+      console.error('Turnierpunkte nicht gebucht:', err.message);
+    }
+  }
+}
+
+function tournamentView(t) {
+  const { awarded, ...rest } = t;
+  return {
+    ...rest,
+    points: TOURNAMENT_POINTS,
+    formatLabel: TOURNAMENT_FORMATS[t.format],
+    standings: t.format === 'liga' && t.status !== 'anmeldung' ? standings(t) : null,
+  };
+}
+
+function findMatch(t, matchId) {
+  for (let r = 0; r < t.rounds.length; r++) {
+    const i = t.rounds[r].findIndex((m) => m.id === matchId);
+    if (i !== -1) return { r, i, match: t.rounds[r][i] };
+  }
+  return null;
+}
+
+function score(v) {
+  if (v === null || v === undefined || v === '') return null;
+  const n = Number(v);
+  return Number.isInteger(n) && n >= 0 && n <= MAX_SCORE ? n : NaN;
+}
+
+function addParticipant(t, name, userId = null) {
+  if (t.participants.length >= MAX_TOURNAMENT_PARTICIPANTS) return `Höchstens ${MAX_TOURNAMENT_PARTICIPANTS} Teilnehmer`;
+  if (userId && t.participants.some((p) => p.userId === userId)) return 'Schon angemeldet';
+  if (t.participants.some((p) => p.name.toLowerCase() === name.toLowerCase())) return `„${name}“ ist schon dabei`;
+  t.participants.push({ id: crypto.randomUUID(), name, userId });
+  return null;
+}
+
+function removeUserFromTournaments(userId) {
+  for (const t of state.tournaments) {
+    if (t.status === 'anmeldung') t.participants = t.participants.filter((p) => p.userId !== userId);
+    // Laufende Turniere behalten den Namen, nur die Verknüpfung zum Nutzer fällt weg.
+    for (const p of t.participants) if (p.userId === userId) p.userId = null;
+  }
+}
+
+async function handleTournaments(req, res, method, parts) {
+  const user = viewer(req);
+  if (!user) return sendJson(res, 401, { error: 'Nicht angemeldet' });
+  const t = state.tournaments.find((x) => x.id === parts[0]);
+  if (!t) return sendJson(res, 404, { error: 'Turnier nicht gefunden' });
+  const allowed = user.isAdmin || user.features.turniere;
+  if (!allowed) return sendJson(res, 403, { error: 'Kein Zugriff auf Turniere' });
+
+  if (method === 'POST' && (parts[1] === 'join' || parts[1] === 'leave') && parts.length === 2) {
+    if (user.master) return sendJson(res, 400, { error: 'Mit dem Master-Passwort kannst du nicht mitspielen' });
+    if (t.status !== 'anmeldung' || !t.open) return sendJson(res, 409, { error: 'Die Anmeldung ist geschlossen' });
+    if (parts[1] === 'leave') {
+      t.participants = t.participants.filter((p) => p.userId !== user.id);
+    } else {
+      const error = addParticipant(t, user.username, user.id);
+      if (error) return sendJson(res, 409, { error });
+    }
+    changed();
+    return sendJson(res, 200, { ok: true });
+  }
+
+  if (method === 'POST' && parts[1] === 'matches' && parts[3] === 'result' && parts.length === 4) {
+    const found = findMatch(t, parts[2]);
+    if (!found) return sendJson(res, 404, { error: 'Spiel nicht gefunden' });
+    const { r, i, match } = found;
+    const playerIds = t.participants.filter((p) => p.userId === user.id).map((p) => p.id);
+    if (!user.isAdmin && !playerIds.some((id) => id === match.a || id === match.b)) {
+      return sendJson(res, 403, { error: 'Ergebnisse tragen nur die Spieler dieses Spiels oder Admins ein' });
+    }
+    if (t.status === 'anmeldung') return sendJson(res, 409, { error: 'Das Turnier läuft noch nicht' });
+    if (match.bye) return sendJson(res, 409, { error: 'Freilos' });
+    if (!match.a || !match.b) return sendJson(res, 409, { error: 'Die Gegner stehen noch nicht fest' });
+    const body = await readBody(req);
+
+    if (body.clear) {
+      if (!user.isAdmin) return sendJson(res, 403, { error: 'Nur Admins können Ergebnisse löschen' });
+      if (t.format === 'ko') clearKo(t, r, i);
+      else Object.assign(match, { done: false, winner: null, scoreA: null, scoreB: null });
+    } else {
+      const scoreA = score(body.scoreA);
+      const scoreB = score(body.scoreB);
+      if (Number.isNaN(scoreA) || Number.isNaN(scoreB)) return sendJson(res, 400, { error: 'Ungültiger Spielstand' });
+      if ((scoreA === null) !== (scoreB === null)) return sendJson(res, 400, { error: 'Bitte beide Ergebnisse eintragen' });
+      if (t.format === 'ko') {
+        let winner = body.winner === match.a || body.winner === match.b ? body.winner : null;
+        if (scoreA !== null && scoreA !== scoreB) {
+          const byScore = scoreA > scoreB ? match.a : match.b;
+          if (winner && winner !== byScore) return sendJson(res, 400, { error: 'Sieger passt nicht zum Spielstand' });
+          winner = byScore;
+        }
+        if (!winner) return sendJson(res, 400, { error: 'Im K.-o.-System braucht es einen Sieger' });
+        setKoWinner(t, r, i, winner);
+        Object.assign(match, { scoreA, scoreB });
+      } else {
+        if (scoreA === null) return sendJson(res, 400, { error: 'Bitte den Spielstand eintragen' });
+        const winner = scoreA > scoreB ? match.a : scoreB > scoreA ? match.b : null;
+        Object.assign(match, { done: true, winner, scoreA, scoreB });
+      }
+    }
+    if (t.format === 'liga') updateLigaStatus(t);
+    syncTournamentScores(t);
+    changed();
+    return sendJson(res, 200, tournamentView(t));
+  }
+
+  return sendJson(res, 404, { error: 'Nicht gefunden' });
+}
+
+async function handleTournamentsAdmin(req, res, method, parts) {
+  if (method === 'POST' && parts.length === 1) {
+    const body = await readBody(req);
+    const name = str(80)(body.name);
+    if (!name) return sendJson(res, 400, { error: 'Name fehlt' });
+    const format = body.format === 'liga' ? 'liga' : 'ko';
+    const t = {
+      id: crypto.randomUUID(),
+      name,
+      game: str(60)(body.game),
+      format,
+      status: 'anmeldung',
+      open: Boolean(body.open),
+      createdAt: Date.now(),
+      participants: [],
+      rounds: [],
+      winnerId: null,
+    };
+    for (const id of Array.isArray(body.userIds) ? body.userIds : []) {
+      const u = state.users.find((x) => x.id === id);
+      if (u) addParticipant(t, u.username, u.id);
+    }
+    for (const n of (Array.isArray(body.names) ? body.names : []).map(str(40)).filter(Boolean)) addParticipant(t, n);
+    state.tournaments.unshift(t);
+    changed();
+    return sendJson(res, 201, tournamentView(t));
+  }
+
+  const t = state.tournaments.find((x) => x.id === parts[1]);
+  if (!t) return sendJson(res, 404, { error: 'Turnier nicht gefunden' });
+
+  if (method === 'PATCH' && parts.length === 2) {
+    const body = await readBody(req);
+    if ('name' in body) t.name = str(80)(body.name) || t.name;
+    if ('game' in body) t.game = str(60)(body.game);
+    if ('open' in body) t.open = Boolean(body.open);
+    if ('format' in body && t.status === 'anmeldung') t.format = body.format === 'liga' ? 'liga' : 'ko';
+    changed();
+    return sendJson(res, 200, tournamentView(t));
+  }
+
+  if (method === 'POST' && parts[2] === 'participants' && parts.length === 3) {
+    if (t.status !== 'anmeldung') return sendJson(res, 409, { error: 'Das Turnier hat schon begonnen' });
+    const body = await readBody(req);
+    const u = body.userId ? state.users.find((x) => x.id === body.userId) : null;
+    const name = u ? u.username : str(40)(body.name);
+    if (!name) return sendJson(res, 400, { error: 'Name fehlt' });
+    const error = addParticipant(t, name, u ? u.id : null);
+    if (error) return sendJson(res, 409, { error });
+    changed();
+    return sendJson(res, 201, tournamentView(t));
+  }
+
+  if (method === 'DELETE' && parts[2] === 'participants' && parts.length === 4) {
+    if (t.status !== 'anmeldung') return sendJson(res, 409, { error: 'Das Turnier hat schon begonnen' });
+    t.participants = t.participants.filter((p) => p.id !== parts[3]);
+    changed();
+    return sendJson(res, 200, tournamentView(t));
+  }
+
+  if (method === 'POST' && parts[2] === 'start') {
+    if (t.status !== 'anmeldung') return sendJson(res, 409, { error: 'Das Turnier läuft schon' });
+    if (t.participants.length < 2) return sendJson(res, 400, { error: 'Mindestens zwei Teilnehmer nötig' });
+    t.status = 'laeuft';
+    t.open = false;
+    t.startedAt = Date.now();
+    if (t.format === 'ko') buildKo(t);
+    else buildLiga(t);
+    changed();
+    return sendJson(res, 200, tournamentView(t));
+  }
+
+  // Zurück zur Anmeldung: Spielplan und Ergebnisse werden verworfen.
+  if (method === 'POST' && parts[2] === 'reset') {
+    Object.assign(t, { status: 'anmeldung', rounds: [], winnerId: null, startedAt: null, finishedAt: null });
+    syncTournamentScores(t);
+    changed();
+    return sendJson(res, 200, tournamentView(t));
+  }
+
+  if (method === 'DELETE' && parts.length === 2) {
+    state.tournaments.splice(state.tournaments.indexOf(t), 1);
+    revokeScores(t.id);
     changed();
     return sendJson(res, 200, { ok: true });
   }
