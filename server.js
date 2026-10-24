@@ -19,6 +19,9 @@ const PUBLIC_DIR = path.join(__dirname, 'public');
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'lanparty';
 const SERVER_CHECK_INTERVAL = (Number(process.env.SERVER_CHECK_INTERVAL) || 30) * 1000;
 const MAX_BODY = 64 * 1024;
+const STEAM_API_KEY = process.env.STEAM_API_KEY || '';
+const STEAM_API_BASE = process.env.STEAM_API_BASE || 'https://api.steampowered.com';
+const STEAM_REFRESH = (Number(process.env.STEAM_REFRESH_MINUTES) || 60) * 60 * 1000;
 
 if (!process.env.ADMIN_PASSWORD) {
   console.warn('WARNUNG: ADMIN_PASSWORD ist nicht gesetzt, Standardpasswort "lanparty" wird verwendet.');
@@ -44,6 +47,8 @@ const DEFAULT_STATE = {
   wheel: { open: true, entries: [], spinnerIds: [], spin: null },
   achievements: emptyAchievements(),
   teams: { pool: [], teamCount: 2, balanced: false, usersCanGenerate: true, result: null },
+  // apiKey ist geheim und landet nie im öffentlichen Zustand.
+  steam: { apiKey: '', profiles: {}, games: {} },
 };
 
 // Features, die der Admin pro Nutzer freischalten kann. Noch Platzhalter.
@@ -55,6 +60,7 @@ const FEATURES = [
   { key: 'essen', label: 'Essensbestellung' },
   { key: 'wishlist', label: 'Wishlist' },
   { key: 'musik', label: 'Musik (Spotify)' },
+  { key: 'spiele', label: 'Spiele-Matrix' },
 ];
 const FEATURE_KEYS = new Set(FEATURES.map((f) => f.key));
 const SESSION_COOKIE = 'lp_session';
@@ -106,6 +112,7 @@ function loadState() {
     if (raw.wheel && typeof raw.wheel === 'object') Object.assign(state.wheel, raw.wheel);
     if (raw.achievements && typeof raw.achievements === 'object') Object.assign(state.achievements, raw.achievements);
     if (raw.teams && typeof raw.teams === 'object') Object.assign(state.teams, raw.teams);
+    if (raw.steam && typeof raw.steam === 'object') Object.assign(state.steam, raw.steam);
     return state;
   } catch (err) {
     if (err.code !== 'ENOENT') console.error('Konnte Daten nicht laden, starte leer:', err.message);
@@ -211,6 +218,8 @@ function publicState() {
     servers: state.servers.map((s) => ({ ...s, status: serverStatus[s.id] || null })),
     achievements: achievements.publicView(state.users),
     music: spotify.publicView(),
+    // Die Matrix selbst ist nicht öffentlich; ändert sich die Zahl, lädt das Dashboard sie neu.
+    steamRev,
   };
 }
 
@@ -427,6 +436,7 @@ async function handleApi(req, res, pathname) {
   if (pathname.startsWith('/api/teams/')) return handleTeams(req, res, method, pathname.split('/').slice(3));
   if (pathname.startsWith('/api/music/')) return handleMusic(req, res, method, pathname.split('/').slice(3));
   if (method === 'GET' && pathname === '/api/spotify/callback') return handleSpotifyCallback(req, res);
+  if (pathname.startsWith('/api/steam/')) return handleSteam(req, res, method, pathname.split('/').slice(3));
 
   if (!pathname.startsWith('/api/admin/')) return sendJson(res, 404, { error: 'Nicht gefunden' });
   if (!isAdmin(req)) return sendJson(res, 401, { error: 'Falsches Passwort' });
@@ -450,6 +460,7 @@ async function handleApi(req, res, pathname) {
   if (parts[0] === 'achievements') return handleAchievementsAdmin(req, res, method, parts);
   if (parts[0] === 'teams') return handleTeamsAdmin(req, res, method, parts);
   if (parts[0] === 'music') return handleMusicAdmin(req, res, method, parts);
+  if (parts[0] === 'steam') return handleSteamAdmin(req, res, method, parts);
 
   const fields = COLLECTIONS[parts[0]];
   if (!fields) return sendJson(res, 404, { error: 'Nicht gefunden' });
@@ -550,9 +561,11 @@ async function handleUsers(req, res, method, parts) {
     achievements.removeUser(user.id);
     spotify.forgetUser(user.id);
     state.teams.pool = state.teams.pool.filter((p) => p.userId !== user.id);
+    delete state.steam.profiles[user.id];
+    delete nowPlaying[user.id];
     // Der Spieler bleibt samt Punkten im Leaderboard, nur ohne Anmeldung.
     for (const p of state.players) if (p.userId === user.id) p.userId = null;
-    changed();
+    steamChanged();
     return sendJson(res, 200, { ok: true });
   }
 
@@ -1634,6 +1647,248 @@ async function handleSpotifyCallback(req, res) {
   }
 }
 
+// ---------------------------------------------------------------------------
+// Steam-Spiele-Matrix
+//
+// Die Steam Web API verrät, welche Spiele jemand besitzt, wie lange er sie
+// gespielt hat und was er gerade spielt, aber nicht, was installiert ist.
+// "Installiert" haken die Nutzer deshalb selbst an.
+
+let steamRev = 0;
+const nowPlaying = {}; // Nutzer-ID -> { appid, name }
+const steamRefreshAt = {}; // Nutzer-ID -> Zeitpunkt des letzten manuellen Aktualisierens
+
+function steamChanged() {
+  steamRev++;
+  changed();
+}
+
+function steamKey() {
+  return STEAM_API_KEY || state.steam.apiKey;
+}
+
+async function steamApi(endpoint, params) {
+  const url = new URL(STEAM_API_BASE + endpoint);
+  url.searchParams.set('key', steamKey());
+  for (const [k, v] of Object.entries(params)) url.searchParams.set(k, v);
+  // status 502: die Fehlermeldung geht so bis zum Browser durch.
+  const fail = (message) => Object.assign(new Error(message), { status: 502 });
+  let res;
+  try {
+    res = await fetch(url, { signal: AbortSignal.timeout(10000) });
+  } catch {
+    throw fail('Steam nicht erreichbar (Internet?)');
+  }
+  if (res.status === 401 || res.status === 403) throw fail('Steam-API-Schlüssel ungültig');
+  if (res.status === 429) throw fail('Steam bremst gerade, später nochmal versuchen');
+  if (!res.ok) throw fail(`Steam antwortet mit Fehler ${res.status}`);
+  return (await res.json().catch(() => ({}))).response || {};
+}
+
+// Akzeptiert SteamID64, Profil-Link (/profiles/… oder /id/…) oder den Namen aus der Profil-URL.
+async function resolveSteamId(input) {
+  const text = String(input ?? '').trim();
+  const direct = text.match(/(?:^|\/profiles\/)(7656\d{13})(?:\D|$)/);
+  if (direct) return direct[1];
+  const vanity = (text.match(/steamcommunity\.com\/id\/([^/?#\s]+)/) || [])[1]
+    || (/^[A-Za-z0-9_-]{2,32}$/.test(text) ? text : null);
+  if (!vanity) throw Object.assign(new Error('Das sieht nicht nach einem Steam-Profil aus'), { status: 400 });
+  if (!steamKey()) throw Object.assign(new Error('Zuerst muss der Admin einen Steam-API-Schlüssel eintragen'), { status: 409 });
+  const data = await steamApi('/ISteamUser/ResolveVanityURL/v1/', { vanityurl: vanity });
+  if (data.success !== 1) throw Object.assign(new Error('Steam-Profil nicht gefunden'), { status: 404 });
+  return data.steamid;
+}
+
+async function fetchSteamGames(userId) {
+  const profile = state.steam.profiles[userId];
+  if (!profile || !steamKey()) return;
+  try {
+    const data = await steamApi('/IPlayerService/GetOwnedGames/v1/', {
+      steamid: profile.steamId,
+      include_appinfo: 1,
+      include_played_free_games: 1,
+    });
+    // Private Spieldetails liefern eine leere Antwort statt eines Fehlers.
+    if (!Array.isArray(data.games)) {
+      profile.error = 'Spieldetails im Steam-Profil sind privat';
+    } else {
+      for (const g of data.games) {
+        state.steam.games[g.appid] = { name: str(120)(g.name), icon: /^[0-9a-f]{40}$/.test(g.img_icon_url) ? g.img_icon_url : '' };
+      }
+      profile.games = data.games.map((g) => [g.appid, num(g.playtime_forever)]);
+      profile.error = null;
+    }
+  } catch (err) {
+    profile.error = err.message; // Alte Spieleliste bleibt erhalten, falls das Internet weg ist.
+  }
+  profile.fetchedAt = Date.now();
+  steamChanged();
+}
+
+async function refreshAllSteamGames() {
+  for (const userId of Object.keys(state.steam.profiles)) await fetchSteamGames(userId);
+}
+
+// Name, Avatar und "spielt gerade" für alle verknüpften Profile, in einem Aufruf.
+async function refreshSteamPlaying() {
+  const entries = Object.entries(state.steam.profiles);
+  if (!entries.length || !steamKey()) return;
+  let players;
+  try {
+    players = (await steamApi('/ISteamUser/GetPlayerSummaries/v2/', {
+      steamids: entries.map(([, p]) => p.steamId).slice(0, 100).join(','),
+    })).players || [];
+  } catch {
+    return;
+  }
+  const bySteamId = new Map(players.map((p) => [p.steamid, p]));
+  let dirty = false;
+  for (const [userId, profile] of entries) {
+    const p = bySteamId.get(profile.steamId);
+    if (!p) continue;
+    const persona = str(60)(p.personaname);
+    const avatar = /^https:\/\/[\w.-]+\.(steamstatic|akamaihd)\.(com|net)\//.test(p.avatarmedium || '') ? p.avatarmedium : '';
+    if (persona !== profile.persona || avatar !== profile.avatar) {
+      Object.assign(profile, { persona, avatar });
+      dirty = true;
+    }
+    const playing = p.gameid ? { appid: Number(p.gameid), name: str(120)(p.gameextrainfo) } : null;
+    if (nowPlaying[userId]?.appid !== playing?.appid) dirty = true;
+    if (playing) nowPlaying[userId] = playing;
+    else delete nowPlaying[userId];
+  }
+  if (dirty) steamChanged();
+}
+
+async function linkSteam(userId, input) {
+  if (!str(200)(input)) {
+    delete state.steam.profiles[userId];
+    delete nowPlaying[userId];
+    steamChanged();
+    return null;
+  }
+  const steamId = await resolveSteamId(input);
+  const old = state.steam.profiles[userId];
+  state.steam.profiles[userId] = old?.steamId === steamId
+    ? old
+    : { steamId, persona: '', avatar: '', games: [], installed: [], fetchedAt: null, error: null };
+  await fetchSteamGames(userId);
+  refreshSteamPlaying();
+  return state.steam.profiles[userId];
+}
+
+function steamProfileView(profile) {
+  if (!profile) return null;
+  return {
+    steamId: profile.steamId,
+    persona: profile.persona,
+    gameCount: profile.games.length,
+    fetchedAt: profile.fetchedAt,
+    error: profile.error,
+  };
+}
+
+// Spalten = Nutzer mit verknüpftem Profil und Spielen, Zeilen = alle Spiele, die mindestens einer besitzt.
+// Profile ohne Spiele (meist privat) zählen nicht mit, sonst hätte nie "jeder" ein Spiel.
+function steamMatrix(user) {
+  const linked = state.users.filter((u) => state.steam.profiles[u.id]);
+  const players = linked
+    .filter((u) => state.steam.profiles[u.id].games.length)
+    .map((u) => {
+      const p = state.steam.profiles[u.id];
+      return { id: u.id, username: u.username, persona: p.persona, avatar: p.avatar, gameCount: p.games.length, error: p.error, playing: nowPlaying[u.id] || null };
+    });
+  const games = new Map();
+  players.forEach((player, index) => {
+    const profile = state.steam.profiles[player.id];
+    const installed = new Set(profile.installed);
+    for (const [appid, minutes] of profile.games) {
+      if (!games.has(appid)) games.set(appid, { appid, ...(state.steam.games[appid] || { name: `App ${appid}`, icon: '' }), own: [] });
+      games.get(appid).own.push([index, minutes, installed.has(appid) ? 1 : 0]);
+    }
+  });
+  return {
+    configured: Boolean(steamKey()),
+    me: { id: user.id, canLink: !user.master, profile: steamProfileView(state.steam.profiles[user.id]) },
+    unlinked: state.users.filter((u) => !state.steam.profiles[u.id] && (u.isAdmin || u.features.spiele)).map((u) => u.username),
+    problems: linked
+      .filter((u) => !state.steam.profiles[u.id].games.length)
+      .map((u) => ({ username: u.username, error: state.steam.profiles[u.id].error || 'noch keine Spiele geladen' })),
+    players,
+    games: [...games.values()],
+  };
+}
+
+async function handleSteam(req, res, method, parts) {
+  const user = viewer(req);
+  if (!user) return sendJson(res, 401, { error: 'Nicht angemeldet' });
+  if (!user.isAdmin && !user.features.spiele) return sendJson(res, 403, { error: 'Kein Zugriff auf die Spiele-Matrix' });
+
+  if (method === 'GET' && parts[0] === 'matrix') return sendJson(res, 200, steamMatrix(user));
+
+  if (user.master) return sendJson(res, 409, { error: 'Mit dem Master-Passwort gibt es kein eigenes Steam-Profil' });
+
+  if (method === 'PUT' && parts[0] === 'me' && parts.length === 1) {
+    const profile = await linkSteam(user.id, (await readBody(req)).profile);
+    return sendJson(res, 200, { profile: steamProfileView(profile) });
+  }
+
+  if (method === 'POST' && parts[0] === 'me' && parts[1] === 'refresh') {
+    if (!state.steam.profiles[user.id]) return sendJson(res, 409, { error: 'Kein Steam-Profil verknüpft' });
+    if (Date.now() - (steamRefreshAt[user.id] || 0) < 60000) return sendJson(res, 429, { error: 'Bitte eine Minute warten' });
+    steamRefreshAt[user.id] = Date.now();
+    await fetchSteamGames(user.id);
+    return sendJson(res, 200, { profile: steamProfileView(state.steam.profiles[user.id]) });
+  }
+
+  // "Habe ich installiert" setzt jeder nur für sich und nur für Spiele, die er besitzt.
+  if (method === 'PUT' && parts[0] === 'installed' && parts.length === 2) {
+    const profile = state.steam.profiles[user.id];
+    const appid = Number(parts[1]);
+    if (!profile) return sendJson(res, 409, { error: 'Kein Steam-Profil verknüpft' });
+    if (!profile.games.some(([id]) => id === appid)) return sendJson(res, 404, { error: 'Dieses Spiel besitzt du nicht' });
+    const installed = new Set(profile.installed);
+    if ((await readBody(req)).installed) installed.add(appid);
+    else installed.delete(appid);
+    profile.installed = [...installed];
+    steamChanged();
+    return sendJson(res, 200, { ok: true });
+  }
+
+  return sendJson(res, 404, { error: 'Nicht gefunden' });
+}
+
+async function handleSteamAdmin(req, res, method, parts) {
+  if (method === 'GET' && parts.length === 1) {
+    return sendJson(res, 200, {
+      keySource: STEAM_API_KEY ? 'env' : state.steam.apiKey ? 'admin' : null,
+      users: state.users.map((u) => ({ id: u.id, username: u.username, profile: steamProfileView(state.steam.profiles[u.id]) })),
+    });
+  }
+
+  if (method === 'PUT' && parts.length === 1) {
+    state.steam.apiKey = str(64)((await readBody(req)).apiKey);
+    steamChanged();
+    if (steamKey()) refreshAllSteamGames().then(refreshSteamPlaying);
+    return sendJson(res, 200, { ok: true });
+  }
+
+  if (method === 'PUT' && parts[1] === 'users' && parts.length === 3) {
+    const user = state.users.find((u) => u.id === parts[2]);
+    if (!user) return sendJson(res, 404, { error: 'Nutzer nicht gefunden' });
+    const profile = await linkSteam(user.id, (await readBody(req)).profile);
+    return sendJson(res, 200, { profile: steamProfileView(profile) });
+  }
+
+  if (method === 'POST' && parts[1] === 'refresh') {
+    await refreshAllSteamGames();
+    await refreshSteamPlaying();
+    return sendJson(res, 200, { ok: true });
+  }
+
+  return sendJson(res, 404, { error: 'Nicht gefunden' });
+}
+
 function handleLogin(req, res, url) {
   const user = findUserByToken(url.searchParams.get('token'));
   if (!user) return redirect(res, '/?ungueltig=1');
@@ -1670,6 +1925,9 @@ server.listen(PORT, HOST, () => {
 
 checkAllServers();
 setInterval(checkAllServers, SERVER_CHECK_INTERVAL).unref();
+refreshAllSteamGames().then(refreshSteamPlaying);
+setInterval(refreshAllSteamGames, STEAM_REFRESH).unref();
+setInterval(refreshSteamPlaying, 60 * 1000).unref();
 
 function shutdown() {
   if (saveTimer) saveNow();

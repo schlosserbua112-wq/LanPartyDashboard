@@ -94,6 +94,7 @@ function render(state) {
   document.body.classList.toggle('has-tournament', hasTournament);
   tournaments.update(state.tournaments);
   if (me && hasFeature('abstimmungen')) loadMyVotes();
+  if (me && hasFeature('spiele')) steamMatrix.onRev(state.steamRev);
 
   achievementNotifier.update(state.achievements);
   if (me) loadAchievements();
@@ -343,11 +344,12 @@ function enterUserMode(user) {
   }
   // Das Glücksrad ist schon im Dashboard; die übrigen Features sind Platzhalter.
   music.enterUserMode(me, hasFeature('musik'));
-  const others = me.features.filter((f) => f.enabled && !['gluecksrad', 'abstimmungen', 'turniere', 'teams', 'musik'].includes(f.key));
+  const others = me.features.filter((f) => f.enabled && !['gluecksrad', 'abstimmungen', 'turniere', 'teams', 'musik', 'spiele'].includes(f.key));
   $('featuresCard').hidden = !others.length;
   document.body.classList.toggle('no-features', !others.length);
   $('features').innerHTML = others.map((f) => `<li><strong>${esc(f.label)}</strong><small>kommt bald</small></li>`).join('');
   tournaments.setMode('user');
+  if (hasFeature('spiele')) steamMatrix.start();
   if (current) render(current);
 }
 
