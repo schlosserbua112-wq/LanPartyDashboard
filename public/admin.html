@@ -30,6 +30,13 @@
       <button type="button" data-view="dashboard" class="active">Dashboard</button>
       <button type="button" data-view="wheel">Glücksrad</button>
       <button type="button" data-view="polls">Abstimmungen</button>
+      <button type="button" data-view="leaderboard">Leaderboard</button>
+      <button type="button" data-view="tournaments">Turniere</button>
+      <button type="button" data-view="achievements">Achievements</button>
+      <button type="button" data-view="teams">Teams</button>
+      <button type="button" data-view="musik">Musik</button>
+      <button type="button" data-view="steam">Steam</button>
+      <button type="button" data-view="network">Netzwerk</button>
       <button type="button" data-view="users">Nutzer</button>
     </nav>
 
@@ -55,17 +62,6 @@
         <button>Hinzufügen</button>
       </form>
       <ul class="items" id="list-schedule"></ul>
-    </section>
-
-    <section class="card">
-      <h2>Spieler &amp; Punkte</h2>
-      <form class="row" data-collection="players">
-        <input name="name" placeholder="Name" required>
-        <input name="seat" placeholder="Platz">
-        <input name="points" type="number" value="0" class="short">
-        <button>Hinzufügen</button>
-      </form>
-      <ul class="items" id="list-players"></ul>
     </section>
 
     <section class="card">
@@ -134,6 +130,289 @@
       </section>
     </div>
 
+    <div class="view lb-admin" id="view-leaderboard" hidden>
+      <div>
+        <section class="card">
+          <h2>Punkte vergeben</h2>
+          <form id="scoreForm" class="stack">
+            <fieldset class="features"><legend>Spieler, auch mehrere</legend><div class="lb-picker" id="scorePlayers"></div></fieldset>
+            <label>Punkte <input name="points" type="number" value="10" required></label>
+            <div class="lb-quick" id="scoreQuick">
+              <button type="button" data-points="1">+1</button>
+              <button type="button" data-points="5">+5</button>
+              <button type="button" data-points="10">+10</button>
+              <button type="button" data-points="25">+25</button>
+              <button type="button" data-points="50">+50</button>
+              <button type="button" data-points="100">+100</button>
+              <button type="button" class="neg" data-points="-5">−5</button>
+              <button type="button" class="neg" data-points="-10">−10</button>
+            </div>
+            <label>Grund <input name="reason" maxlength="120" placeholder="z.B. Sieg im CS2-Match"></label>
+            <label>Spiel (optional, für die Wertung pro Spiel) <input name="game" maxlength="40" list="gameList" placeholder="z.B. CS2"></label>
+            <datalist id="gameList"></datalist>
+            <button>Punkte vergeben</button>
+            <p class="error" id="scoreError"></p>
+          </form>
+          <p class="muted">Ein Klick auf einen Schnellwert vergibt die Punkte sofort an die gewählten Spieler.</p>
+        </section>
+
+        <section class="card">
+          <h2>Spieler</h2>
+          <p class="muted">Jeder Nutzer bekommt automatisch einen Spieler. Gäste ohne Anmeldung legst du hier an und kannst sie später mit einem Nutzer verknüpfen.</p>
+          <form class="row" id="playerForm">
+            <input name="name" placeholder="Name" required maxlength="60">
+            <input name="seat" placeholder="Platz" class="short" maxlength="20">
+            <button>Hinzufügen</button>
+          </form>
+          <ul class="items" id="list-players"></ul>
+        </section>
+      </div>
+
+      <div>
+        <section class="card">
+          <h2>Rangliste</h2>
+          <ol class="items" id="lbRanking"></ol>
+        </section>
+
+        <section class="card">
+          <h2>Verlauf</h2>
+          <p class="muted">✕ nimmt eine Buchung zurück.</p>
+          <ul class="items scroll" id="scoreHistory"></ul>
+          <div class="toggle-row"><button type="button" class="secondary danger" id="resetScores">Alle Punkte zurücksetzen</button></div>
+        </section>
+      </div>
+    </div>
+
+    <div class="view tournaments-layout" id="view-tournaments" hidden>
+      <section class="card">
+        <h2>Neues Turnier</h2>
+        <form id="tournamentForm" class="stack">
+          <label>Name <input name="name" maxlength="80" required placeholder="z.B. Rocket-League-Cup"></label>
+          <label>Spiel <input name="game" maxlength="60" placeholder="z.B. Rocket League (optional)"></label>
+          <div class="radio-row">
+            <label class="check"><input type="radio" name="format" value="ko" checked> K.-o.-System</label>
+            <label class="check"><input type="radio" name="format" value="liga"> Jeder gegen jeden</label>
+          </div>
+          <label class="check"><input type="checkbox" name="open" checked> Nutzer dürfen sich selbst anmelden</label>
+          <fieldset class="features" id="tournamentUsers"><legend>Nutzer direkt eintragen</legend></fieldset>
+          <label>Weitere Teilnehmer oder Teams, einer pro Zeile <textarea name="names" rows="4" placeholder="Team Rot&#10;Team Blau"></textarea></label>
+          <button>Turnier anlegen</button>
+          <p class="error" id="tournamentError"></p>
+        </form>
+        <p class="muted">Nutzer mit dem Feature „Turniere“ melden sich im Dashboard an und tragen die Ergebnisse ihrer eigenen Spiele ein. Beim Start wird der Turnierbaum zufällig ausgelost, bei ungerader Teilnehmerzahl gibt es Freilose. Ist das Turnier beendet, bekommen die Plätze 1, 2 und 3 automatisch 25, 15 und 10 Punkte im Leaderboard.</p>
+      </section>
+
+      <section class="card">
+        <h2>Turniere</h2>
+        <div class="tournament" id="tournamentAdmin"></div>
+        <div class="t-admin-actions" id="tournamentActions" hidden></div>
+      </section>
+    </div>
+
+    <div class="view ach-admin-layout" id="view-achievements" hidden>
+      <div class="stack-col">
+        <section class="card">
+          <h2>Achievement vergeben</h2>
+          <form id="awardForm" class="stack">
+            <label>Nutzer <select name="userId" id="awardUser" required></select></label>
+            <label>Achievement <select name="achId" id="awardAch" required></select></label>
+            <button>Vergeben 🏅</button>
+            <p class="error" id="awardError"></p>
+          </form>
+          <p class="muted">Die meisten Achievements schalten sich beim Mitmachen von selbst frei. Die übrigen vergibst du hier, z.B. nach einem Match. Die Anzeige feiert jede Freischaltung mit Popup und Sound.</p>
+        </section>
+
+        <section class="card">
+          <h2>Eigenes Achievement</h2>
+          <form id="customAchForm" class="stack">
+            <div class="row">
+              <input name="icon" class="short" maxlength="4" placeholder="🏅" aria-label="Symbol (Emoji)">
+              <input name="name" maxlength="40" required placeholder="Name, z.B. Headshot-Maschine">
+            </div>
+            <label>Beschreibung <input name="description" maxlength="120" placeholder="Wofür gibt es das?"></label>
+            <label>Seltenheit <select name="rarity" id="customRarity"></select></label>
+            <button>Anlegen</button>
+          </form>
+        </section>
+
+        <section class="card">
+          <h2>Ranking</h2>
+          <ol class="ach-ranking" id="achAdminRanking"></ol>
+        </section>
+      </div>
+
+      <section class="card">
+        <h2>Alle Achievements</h2>
+        <ul class="ach-admin-list" id="achAdminList"></ul>
+      </section>
+    </div>
+
+    <div class="view polls-layout" id="view-teams" hidden>
+      <section class="card">
+        <h2>Teilnehmer <small id="teamPoolCount"></small></h2>
+        <form class="row" id="teamGuestForm">
+          <input name="name" maxlength="40" placeholder="Gast ohne Nutzerkonto, z.B. Max" required>
+          <button>Hinzufügen</button>
+        </form>
+        <div class="toggle-row">
+          <button type="button" class="secondary" id="teamAddAll">Alle Nutzer hinzufügen</button>
+          <button type="button" class="secondary" id="teamClear">Alle entfernen</button>
+        </div>
+        <p class="muted" id="teamCandidatesLabel">Nutzer hinzufügen:</p>
+        <ul class="chips add" id="teamCandidates"></ul>
+        <ul class="chips" id="teamPool"></ul>
+        <p class="muted">Nutzer mit dem Feature „Team-Generator“ können sich im Dashboard selbst ein- und austragen. Beim Ausgleichen zählen die Punkte aus dem Leaderboard.</p>
+      </section>
+
+      <section class="card">
+        <h2>Auslosen</h2>
+        <form id="teamForm" class="team-controls">
+          <label>Teams <select name="teamCount"></select></label>
+          <label class="check"><input type="checkbox" name="balanced"> Nach Punkten ausgleichen</label>
+          <label class="check"><input type="checkbox" name="usersCanGenerate"> Nutzer dürfen auslosen</label>
+          <button class="spin-btn" id="teamGenerate">Teams auslosen!</button>
+          <button type="button" class="secondary" id="teamReset">Ergebnis ausblenden</button>
+        </form>
+        <p class="error" id="teamError"></p>
+        <div class="team-cols" id="teamResult"></div>
+      </section>
+    </div>
+
+    <div class="view music-layout" id="view-musik" hidden>
+      <section class="card">
+        <h2>Spotify verbinden</h2>
+        <p class="status-pill" id="spotifyStatus"></p>
+        <div id="spotifySetup">
+          <ol class="steps">
+            <li>Öffne das <a href="https://developer.spotify.com/dashboard" target="_blank" rel="noopener">Spotify Developer Dashboard</a>, melde dich mit dem Account an, auf dem die Party-Musik läuft, und klicke <strong>Create app</strong>.</li>
+            <li>Name und Beschreibung sind egal. Trage als <strong>Redirect URI</strong> genau diese Adresse ein und hake <strong>Web API</strong> an:<br><code id="redirectUri"></code> <button type="button" class="icon" id="copyRedirect">Kopieren</button></li>
+            <li>Kopiere die <strong>Client ID</strong> der App hier hinein. Ein Client Secret brauchst du nicht.</li>
+          </ol>
+          <form id="spotifyConfig" class="stack">
+            <label>Client ID <input name="clientId" maxlength="64" autocomplete="off" placeholder="32 Zeichen, z.B. 1a2b3c…"></label>
+            <details>
+              <summary class="muted">Andere Redirect URI verwenden</summary>
+              <label class="stack">Redirect URI <input name="redirectUri" placeholder="leer lassen für den Standard"></label>
+            </details>
+            <button>Speichern</button>
+          </form>
+        </div>
+        <div class="toggle-row">
+          <button type="button" id="spotifyConnect">Mit Spotify verbinden</button>
+          <button type="button" class="secondary" id="spotifyDisconnect" hidden>Verbindung trennen</button>
+        </div>
+        <form id="spotifyCode" class="stack" hidden>
+          <p class="muted">Nach der Anmeldung zeigt der neue Tab eine Fehlerseite („Seite nicht erreichbar“). Das ist normal. Kopiere die <strong>komplette Adresse aus der Adresszeile</strong> dieses Tabs und füge sie hier ein:</p>
+          <input name="url" placeholder="http://127.0.0.1:…/api/spotify/callback?code=…" autocomplete="off" required>
+          <button>Verbindung abschließen</button>
+        </form>
+        <p class="error" id="spotifyError"></p>
+      </section>
+
+      <div class="wheel-side">
+        <section class="card">
+          <h2>Wiedergabe</h2>
+          <div id="adminNow"></div>
+          <div class="controls">
+            <button type="button" class="icon" data-music="previous" title="Zurück">⏮</button>
+            <button type="button" class="play" data-music="play" title="Abspielen">▶</button>
+            <button type="button" class="icon" data-music="pause" title="Pause">⏸</button>
+            <button type="button" class="icon" data-music="next" title="Weiter">⏭</button>
+            <label class="volume">🔊 <input type="range" min="0" max="100" id="adminVolume"></label>
+          </div>
+          <p class="error" id="musicControlError"></p>
+        </section>
+
+        <section class="card">
+          <h2>Gerät <button type="button" class="icon" id="loadDevices">Aktualisieren</button></h2>
+          <p class="muted">Spotify muss auf dem Musik-PC (oder Handy) laufen. Hier wählst du, wo gespielt wird.</p>
+          <ul class="devices" id="devices"></ul>
+        </section>
+
+        <section class="card">
+          <h2>Regeln</h2>
+          <form id="musicRules" class="stack">
+            <label>Stimmen zum Überspringen <input name="skipVotes" type="number" min="1" max="50" class="short"></label>
+            <label>Offene Wünsche pro Nutzer <input name="maxWishes" type="number" min="1" max="50" class="short"></label>
+            <label class="check"><input type="checkbox" name="usersCanControl"> Nutzer dürfen Pause, Vor, Zurück und Lautstärke steuern</label>
+            <button>Speichern</button>
+          </form>
+          <p class="muted">Wünschen und abstimmen können alle Nutzer mit dem Feature „Musik (Spotify)“. Admins dürfen immer alles.</p>
+        </section>
+      </div>
+    </div>
+
+    <div class="view" id="view-steam" hidden>
+      <section class="card">
+        <h2>Steam-API-Schlüssel</h2>
+        <p class="muted">Den Schlüssel bekommst du kostenlos unter <a href="https://steamcommunity.com/dev/apikey" target="_blank" rel="noopener">steamcommunity.com/dev/apikey</a> (als Domain einfach „lanparty“ eintragen). Er bleibt auf dem Pi und wird nie an Browser geschickt.</p>
+        <form id="steamKeyForm" class="row">
+          <input name="apiKey" type="password" autocomplete="off" placeholder="Steam-Web-API-Schlüssel">
+          <button>Speichern</button>
+          <button type="button" class="secondary" id="steamRefreshAll">Alle Spielelisten neu laden</button>
+        </form>
+        <p class="muted" id="steamKeyStatus"></p>
+      </section>
+
+      <section class="card">
+        <h2>Steam-Profile der Nutzer</h2>
+        <p class="muted">Nutzer mit dem Feature „Spiele-Matrix“ können ihr Profil auch selbst im Dashboard verknüpfen. Eintragen kannst du einen Profil-Link, den Namen aus der Profil-URL oder die SteamID64. Feld leeren und speichern trennt das Profil.</p>
+        <ul class="steam-admin-list" id="steamUsers"></ul>
+      </section>
+    </div>
+
+    <div class="view net-admin-layout" id="view-network" hidden>
+      <section class="card wide-card">
+        <h2>Status <small id="netCheckedAt"></small></h2>
+        <div class="net-tiles" id="netAdminTiles"></div>
+        <p class="muted" id="netWanHint" hidden>Den Internet-Durchsatz liest der Pi per UPnP aus der FritzBox. Schalte dafür in der FritzBox unter <em>Heimnetz → Netzwerk → Netzwerkeinstellungen</em> die Option <em>„Statusinformationen über UPnP übertragen“</em> ein.</p>
+      </section>
+
+      <section class="card">
+        <h2>Geräte überwachen</h2>
+        <p class="muted">Diese Geräte pingt der Pi regelmäßig an. Sie erscheinen mit Ping-Zeit im Dashboard und auf der Anzeige.</p>
+        <form class="row" data-collection="devices">
+          <input name="name" placeholder="Name, z.B. PC Anna" required>
+          <input name="host" placeholder="IP oder Hostname" required pattern="[A-Za-z0-9][A-Za-z0-9.:\-]*">
+          <button>Hinzufügen</button>
+        </form>
+        <ul class="items" id="list-devices"></ul>
+      </section>
+
+      <section class="card">
+        <h2>Geräte im Netz finden</h2>
+        <p class="muted">Der Pi klopft einmal bei allen Adressen im Heimnetz an. Das dauert etwa zehn Sekunden.</p>
+        <button type="button" id="netDiscover">Netzwerk durchsuchen</button>
+        <ul class="items" id="netFound"></ul>
+      </section>
+
+      <section class="card">
+        <h2>Einstellungen</h2>
+        <form id="netSettingsForm" class="stack">
+          <label>Internet-Ziel für den Ping <input name="netInternet" placeholder="1.1.1.1"></label>
+          <label>Router-Adresse (leer = automatisch) <input name="netRouter" placeholder="z.B. 192.168.178.1"></label>
+          <button>Speichern</button>
+        </form>
+        <ul class="tips">
+          <li id="netModeTip"></li>
+          <li>Windows-PCs beantworten Ping meist nicht. Sie gelten trotzdem als online, sobald sie im Netz sind, nur ohne Ping-Zeit. Für Ping-Zeiten in der Windows-Firewall die Regel „Datei- und Druckerfreigabe (Echoanforderung – ICMPv4 eingehend)“ aktivieren.</li>
+          <li>Offline wird ein Gerät erst nach zwei verpassten Antworten in Folge angezeigt.</li>
+        </ul>
+      </section>
+
+      <section class="card">
+        <h2>Verlauf</h2>
+        <ul class="net-log" id="netLog"></ul>
+      </section>
+
+      <section class="card wide-card">
+        <h2>Verbindungstests</h2>
+        <p class="muted">Nutzer mit dem Feature „Verbindungstest“ messen im Dashboard Ping, Download und Upload zwischen ihrem Gerät und dem Pi. Das letzte Ergebnis pro Nutzer landet in der Bestenliste.</p>
+        <ul class="items" id="netTestList"></ul>
+        <button type="button" class="secondary" id="netClearTests">Liste leeren</button>
+      </section>
+    </div>
+
     <div class="view" id="view-users" hidden>
       <section class="card">
         <h2>Nutzer anlegen</h2>
@@ -154,7 +433,13 @@
   </main>
 
   <script src="/common.js"></script>
+  <script src="/fx.js"></script>
   <script src="/wheel.js"></script>
+  <script src="/tournament.js"></script>
+  <script src="/achievements.js"></script>
+  <script src="/teams.js"></script>
+  <script src="/network.js"></script>
   <script src="/admin.js"></script>
+  <script src="/music-admin.js"></script>
 </body>
 </html>

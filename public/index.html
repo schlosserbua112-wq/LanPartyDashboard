@@ -9,6 +9,15 @@
 <body class="display">
   <header class="topbar">
     <h1 id="eventName">LAN-Party</h1>
+    <div class="now-playing" id="nowPlaying" hidden>
+      <img class="np-cover" id="npCover" alt="">
+      <div class="np-text">
+        <strong id="npTitle"></strong>
+        <small id="npArtist"></small>
+        <span class="np-progress"><span id="npProgress"></span></span>
+      </div>
+      <span class="eq" aria-hidden="true"><i></i><i></i><i></i><i></i></span>
+    </div>
     <div class="wifi" id="wifi"></div>
     <div class="user-bar" id="userBar" hidden>
       <span>Hallo <strong id="username"></strong></span>
@@ -54,9 +63,11 @@
       <ul class="feature-list" id="features"></ul>
     </section>
 
-    <section class="card" id="leaderboardCard">
-      <h2>Rangliste</h2>
-      <ol class="leaderboard" id="leaderboard"></ol>
+    <section class="card lb-card" id="leaderboardCard">
+      <h2>Leaderboard</h2>
+      <nav class="lb-tabs" id="lbTabs" hidden></nav>
+      <ol class="lb-list" id="leaderboard"></ol>
+      <ul class="lb-feed" id="lbFeed"></ul>
     </section>
 
     <section class="card" id="votesCard">
@@ -64,18 +75,147 @@
       <div class="polls" id="polls"></div>
     </section>
 
+    <section class="card" id="tournamentCard" hidden>
+      <h2>Turnier</h2>
+      <div class="tournament" id="tournament"></div>
+    </section>
+
+    <!-- Nur für angemeldete Nutzer sichtbar -->
+    <section class="card ach-card" id="achievementsCard" hidden>
+      <h2>Achievements <small id="achSummary"></small></h2>
+      <div class="ach-body">
+        <ul class="ach-grid" id="achGrid"></ul>
+        <div class="ach-side">
+          <h3 class="side-title">Ranking</h3>
+          <ol class="ach-ranking" id="achRanking"></ol>
+          <h3 class="side-title">Zuletzt freigeschaltet</h3>
+          <ul class="ach-feed" id="achFeed"></ul>
+        </div>
+      </div>
+    </section>
+
+    <!-- Nur für Nutzer mit dem Feature „Musik“ -->
+    <section class="card music-card" id="musicCard" hidden>
+      <h2>Musik <small id="musicAccount"></small></h2>
+      <div class="music-body">
+        <div class="music-now" id="musicNow"></div>
+        <div class="music-queue">
+          <h3 class="side-title">Als Nächstes</h3>
+          <ol class="queue scroll" id="musicQueue"></ol>
+        </div>
+        <div class="music-search">
+          <h3 class="side-title">Song wünschen <small id="wishHint"></small></h3>
+          <form id="musicSearch" class="row">
+            <input name="q" maxlength="100" placeholder="Titel oder Künstler suchen" autocomplete="off" required>
+            <button>Suchen</button>
+          </form>
+          <p class="error" id="musicError"></p>
+          <ul class="results scroll" id="musicResults"></ul>
+        </div>
+      </div>
+    </section>
+
+    <section class="card net-card" id="networkCard">
+      <h2>Netzwerk</h2>
+      <div class="net-tiles" id="netTiles"></div>
+      <div class="net-wan" id="netWan" hidden>
+        <div class="net-rates">
+          <div class="rate down"><small>↓ Download</small><strong id="netDown">–</strong><small>Mbit/s</small><span class="use"><span id="netDownBar"></span></span></div>
+          <div class="rate up"><small>↑ Upload</small><strong id="netUp">–</strong><small>Mbit/s</small><span class="use"><span id="netUpBar"></span></span></div>
+        </div>
+        <canvas class="net-chart" id="netChart"></canvas>
+        <small class="net-max" id="netMax"></small>
+      </div>
+      <div class="net-dev-box">
+        <h3 class="side-title">Geräte <small id="netDevCount"></small></h3>
+        <ul class="net-devices" id="netDevices"></ul>
+      </div>
+      <p class="net-banner" id="netSpeedBanner" hidden></p>
+      <div class="net-speed" id="netSpeed" hidden>
+        <h3 class="side-title">Dein Verbindungstest</h3>
+        <div class="gauge-wrap">
+          <canvas id="netGauge"></canvas>
+          <div class="gauge-readout"><strong id="netGaugeValue">0</strong><small>Mbit/s</small><span id="netPhase">Bereit</span></div>
+        </div>
+        <dl class="net-results">
+          <div><dt>Ping</dt><dd data-result="ping">–</dd></div>
+          <div><dt>Jitter</dt><dd data-result="jitter">–</dd></div>
+          <div><dt>Download</dt><dd data-result="down">–</dd></div>
+          <div><dt>Upload</dt><dd data-result="up">–</dd></div>
+        </dl>
+        <button type="button" id="netTestBtn" class="spin-btn">Verbindung testen</button>
+        <p class="error" id="netTestError"></p>
+      </div>
+      <div class="net-tests-box" id="netTestsBox" hidden>
+        <h3 class="side-title">Schnellste Verbindungen</h3>
+        <ol class="net-tests" id="netTests"></ol>
+      </div>
+      <p class="net-event" id="netEvent"></p>
+    </section>
+
     <section class="card" id="serversCard">
       <h2>Server</h2>
       <ul class="servers" id="servers"></ul>
     </section>
+
+    <!-- Nur für Nutzer mit dem Feature „Team-Generator“ -->
+    <section class="card teams-card" id="teamsCard" hidden>
+      <h2>Team-Generator <small id="teamPoolCount"></small></h2>
+      <div class="teams-body">
+        <div class="teams-side">
+          <button type="button" id="teamJoin"></button>
+          <ul class="chips" id="teamPool"></ul>
+          <form id="teamForm" class="team-controls">
+            <label>Teams
+              <select name="teamCount"></select>
+            </label>
+            <label class="check"><input type="checkbox" name="balanced"> Nach Punkten ausgleichen</label>
+            <button class="spin-btn" id="teamGenerate">Teams auslosen!</button>
+          </form>
+          <p class="muted" id="teamLocked" hidden>Gerade lost nur der Admin aus.</p>
+          <p class="error" id="teamError"></p>
+        </div>
+        <div class="team-cols" id="teamResult"></div>
+      </div>
+    </section>
+
+    <!-- Nur für Nutzer mit dem Feature „Spiele-Matrix“ -->
+    <section class="card steam-card" id="steamCard" hidden>
+      <h2>Spiele-Matrix <small id="steamCount"></small></h2>
+      <div id="steamLink"></div>
+      <p class="error" id="steamError"></p>
+      <div id="steamCommon" hidden></div>
+      <div class="steam-toolbar">
+        <input type="search" id="steamSearch" placeholder="Spiel suchen…">
+        <div class="steam-filters" id="steamFilters">
+          <button type="button" data-filter="shared" class="active">Mindestens 2</button>
+          <button type="button" data-filter="everyone">Alle haben es</button>
+          <button type="button" data-filter="all">Alle Spiele</button>
+        </div>
+        <span class="steam-legend"><span class="cell play"><span>▶</span></span> spielt gerade <span class="cell inst"><span>✓</span></span> installiert <span class="cell own"><span>○</span></span> besitzt es</span>
+      </div>
+      <div class="steam-table-wrap"><table class="steam-matrix" id="steamMatrix"></table></div>
+      <p class="empty" id="steamEmpty"></p>
+      <button type="button" class="secondary" id="steamMore" hidden></button>
+      <p class="muted steam-note">Steam verrät nur, wer ein Spiel besitzt und was gerade läuft. Ob es installiert ist, hakt jeder in seiner eigenen Spalte selbst an. <span id="steamUnlinked"></span></p>
+    </section>
   </main>
 
   <p class="toast" id="toast" hidden></p>
+  <div class="music-toast" id="musicToast" hidden></div>
 
   <footer class="ticker"><span id="ticker"></span><span class="conn" id="conn"></span></footer>
 
   <script src="/common.js"></script>
+  <script src="/fx.js"></script>
   <script src="/wheel.js"></script>
+  <script src="/leaderboard.js"></script>
+  <script src="/tournament.js"></script>
+  <script src="/achievements.js"></script>
+  <script src="/teams.js"></script>
+  <script src="/music.js"></script>
+  <script src="/network.js"></script>
   <script src="/display.js"></script>
+  <script src="/steam.js"></script>
 </body>
 </html>
