@@ -235,3 +235,46 @@ button.danger:hover { background: var(--bad); color: #fff; }
 }
 .vote-list button.chosen { border-color: var(--accent); background: var(--card-2); }
 .vote-list .count { color: var(--muted); }
+
+/* ------------------------------------------------------ Nutzerverwaltung */
+
+.view { display: grid; gap: 1rem; }
+.view[hidden] { display: none; }
+.tabs { display: flex; gap: 0.5rem; border-bottom: 1px solid var(--line); }
+.tabs button {
+  background: none;
+  color: var(--muted);
+  border-radius: 8px 8px 0 0;
+  border-bottom: 3px solid transparent;
+}
+.tabs button.active { color: var(--text); border-bottom-color: var(--accent); }
+
+.check { display: inline-flex !important; align-items: center; gap: 0.4rem; color: var(--text) !important; cursor: pointer; }
+.check input { width: 1.1em; height: 1.1em; accent-color: var(--accent); }
+.features { border: 1px solid var(--line); border-radius: 8px; display: flex; flex-wrap: wrap; gap: 0.5rem 1.2rem; padding: 0.6rem 0.8rem; }
+.features legend { color: var(--muted); font-size: 0.9em; padding: 0 0.3rem; }
+
+.users li { border-top: 1px solid var(--line); padding: 0.8rem 0; display: grid; gap: 0.5rem; }
+.user-head { display: flex; align-items: center; flex-wrap: wrap; gap: 0.5rem; }
+.user-head .badge { margin-left: 0; }
+.link-row { display: flex; flex-wrap: wrap; gap: 0.5rem; }
+.link-row input { flex: 1 1 14em; font-size: 0.85em; color: var(--muted); }
+.checks { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem 1.2rem; }
+.checks .danger { margin-left: auto; }
+
+.links { margin-bottom: 1.5rem; }
+.section { font-size: 0.9rem; text-transform: uppercase; letter-spacing: 0.12em; color: var(--accent); margin-bottom: 0.8rem; }
+.feature-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 0.8rem; }
+.feature-grid button {
+  width: 100%;
+  min-height: 110px;
+  display: grid;
+  place-content: center;
+  gap: 0.3rem;
+  background: var(--card);
+  color: var(--text);
+  border: 2px solid var(--line);
+  font-size: 1.05rem;
+}
+.feature-grid button:hover { border-color: var(--accent); }
+.feature-grid small { font-weight: normal; }

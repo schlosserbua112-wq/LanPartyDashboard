@@ -22,6 +22,13 @@
       <nav><a href="/" target="_blank">Anzeige öffnen</a> · <a href="/vote" target="_blank">Abstimmung</a> · <a href="#" id="logout">Abmelden</a></nav>
     </header>
 
+    <nav class="tabs" id="tabs">
+      <button type="button" data-view="dashboard" class="active">Dashboard</button>
+      <button type="button" data-view="users">Nutzer</button>
+    </nav>
+
+    <div class="view" id="view-dashboard">
+
     <section class="card">
       <h2>Allgemein</h2>
       <form id="settingsForm" class="stack">
@@ -85,6 +92,25 @@
       </form>
       <ul class="items" id="list-servers"></ul>
     </section>
+    </div>
+
+    <div class="view" id="view-users" hidden>
+      <section class="card">
+        <h2>Nutzer anlegen</h2>
+        <form id="userForm" class="stack">
+          <label>Nutzername <input name="username" required maxlength="40" placeholder="z.B. Anna"></label>
+          <label class="check"><input type="checkbox" name="isAdmin"> Ist Admin</label>
+          <fieldset class="features" id="newUserFeatures"><legend>Features</legend></fieldset>
+          <button>Anlegen</button>
+        </form>
+      </section>
+
+      <section class="card">
+        <h2>Nutzer</h2>
+        <p class="muted">Jeder Nutzer meldet sich über seinen persönlichen Link an. Schick ihm den Link, z.B. per WhatsApp. „Neuer Link“ macht den alten ungültig.</p>
+        <ul class="users" id="userList"></ul>
+      </section>
+    </div>
   </main>
 
   <script src="/common.js"></script>

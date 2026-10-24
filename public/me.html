@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Mein Bereich · LAN-Party</title>
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body class="page">
+  <main class="narrow" id="out" hidden>
+    <h1>Nicht angemeldet</h1>
+    <p class="muted" id="outText">Öffne den persönlichen Link, den du vom Admin bekommen hast.</p>
+  </main>
+
+  <main class="narrow" id="in" hidden>
+    <h1>Hallo <span id="username"></span>!</h1>
+    <nav class="links">
+      <a href="/">Anzeige</a> · <a href="/vote">Abstimmen</a><span id="adminLink" hidden> · <a href="/admin">Admin</a></span> · <a href="/logout">Abmelden</a>
+    </nav>
+
+    <h2 class="section">Deine Features</h2>
+    <ul class="feature-grid" id="features"></ul>
+    <p class="muted" id="featureMsg"></p>
+  </main>
+
+  <script src="/common.js"></script>
+  <script>
+    'use strict';
+    const $ = (id) => document.getElementById(id);
+
+    if (new URLSearchParams(location.search).has('ungueltig')) {
+      $('outText').textContent = 'Dieser Link ist ungültig oder wurde ersetzt. Frag den Admin nach einem neuen.';
+    }
+
+    fetch('/api/me').then(async (res) => {
+      if (!res.ok) {
+        $('out').hidden = false;
+        return;
+      }
+      const me = await res.json();
+      $('in').hidden = false;
+      $('username').textContent = me.username;
+      $('adminLink').hidden = !me.isAdmin;
+      const enabled = me.features.filter((f) => f.enabled);
+      $('features').innerHTML = enabled.length
+        ? enabled.map((f) => `<li><button data-key="${esc(f.key)}"><strong>${esc(f.label)}</strong><small>kommt bald</small></button></li>`).join('')
+        : '<li class="empty">Für dich ist noch kein Feature freigeschaltet.</li>';
+    });
+
+    // Die Features sind noch Platzhalter; der Klick prüft nur die Berechtigung.
+    $('features').addEventListener('click', async (e) => {
+      const btn = e.target.closest('button[data-key]');
+      if (!btn) return;
+      const res = await fetch('/api/features/' + btn.dataset.key);
+      const body = await res.json();
+      $('featureMsg').textContent = res.ok
+        ? `${btn.querySelector('strong').textContent} ist freigeschaltet, wird aber erst noch gebaut.`
+        : body.error;
+    });
+  </script>
+</body>
+</html>

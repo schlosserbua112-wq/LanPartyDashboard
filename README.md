@@ -7,6 +7,15 @@ Ein schlankes Dashboard für LAN-Partys, gebaut für den Raspberry Pi. Ein Bilds
 | `http://<pi>:8080/` | Anzeige für TV/Beamer (16:9, Vollbild) |
 | `http://<pi>:8080/vote` | Abstimmung per Handy, eine Stimme pro Gerät |
 | `http://<pi>:8080/admin` | Verwaltung (passwortgeschützt) |
+| `http://<pi>:8080/me` | Persönlicher Bereich eines Nutzers |
+
+## Nutzerverwaltung
+
+Im Admin-Bereich gibt es den Reiter **Nutzer**. Dort legst du Nutzer mit Nutzernamen an und schickst ihnen ihren persönlichen Link (`/login?token=…`). Wer den Link öffnet, ist auf diesem Gerät angemeldet und landet auf `/me`.
+
+- **Admin**: Nutzer mit Admin-Haken kommen ohne Passwort in `/admin`. Das Master-Passwort aus `ADMIN_PASSWORD` funktioniert weiterhin.
+- **Features**: Pro Nutzer schaltest du Glücksrad, Essensbestellung und Wishlist frei. Die Features sind noch Platzhalter; der Server prüft aber schon die Berechtigung (`/api/features/<name>`).
+- **Neuer Link** macht den alten Link ungültig und meldet den Nutzer überall ab. **Löschen** entfernt den Nutzer samt Zugang.
 
 ## Warum dieser Stack
 

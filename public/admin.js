@@ -5,10 +5,15 @@ let password = null;
 try { password = sessionStorage.getItem('lanparty-admin'); } catch {}
 let source = null;
 
+// Ohne Passwort zählt das Cookie eines angemeldeten Admin-Nutzers.
+function authHeaders() {
+  return password ? { Authorization: 'Bearer ' + password } : {};
+}
+
 async function api(method, url, body) {
   const res = await fetch('/api/admin/' + url, {
     method,
-    headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + password },
+    headers: { 'Content-Type': 'application/json', ...authHeaders() },
     body: body === undefined ? undefined : JSON.stringify(body),
   });
   if (res.status === 401) {
@@ -73,9 +78,15 @@ function showAdmin() {
   $('login').hidden = true;
   $('admin').hidden = false;
   if (!source) source = subscribe(render);
+  loadUsers();
 }
 
 function logout() {
+  // Über einen Nutzer-Link angemeldet: Cookie auf dem Server löschen lassen.
+  if (!password) {
+    location.href = '/logout';
+    return;
+  }
   password = null;
   try { sessionStorage.removeItem('lanparty-admin'); } catch {}
   if (source) source.close();
@@ -135,7 +146,110 @@ $('admin').addEventListener('click', (e) => {
   }
 });
 
-if (password) {
-  fetch('/api/admin/login', { method: 'POST', headers: { Authorization: 'Bearer ' + password } })
-    .then((r) => (r.ok ? showAdmin() : logout()));
+// --- Ansichten -------------------------------------------------------------
+
+$('tabs').addEventListener('click', (e) => {
+  const btn = e.target.closest('button[data-view]');
+  if (!btn) return;
+  for (const b of $('tabs').querySelectorAll('button')) b.classList.toggle('active', b === btn);
+  for (const v of document.querySelectorAll('.view')) v.hidden = v.id !== 'view-' + btn.dataset.view;
+  if (btn.dataset.view === 'users') loadUsers();
+});
+
+// --- Nutzerverwaltung ------------------------------------------------------
+
+let features = [];
+
+const inviteLink = (u) => `${location.origin}/login?token=${encodeURIComponent(u.token)}`;
+
+function featureBoxes(selected, attrs = '') {
+  return features.map((f) => `<label class="check"><input type="checkbox" data-feature="${esc(f.key)}" ${attrs} ${selected[f.key] ? 'checked' : ''}> ${esc(f.label)}</label>`).join('');
 }
+
+function renderUsers(users) {
+  if (!$('newUserFeatures').querySelector('input')) {
+    $('newUserFeatures').insertAdjacentHTML('beforeend', featureBoxes({}));
+  }
+  $('userList').innerHTML = users.length
+    ? users.map((u) => `<li data-user="${esc(u.id)}">
+        <div class="user-head">
+          <strong>${esc(u.username)}</strong>
+          ${u.isAdmin ? '<span class="badge">Admin</span>' : ''}
+          <small>${u.lastLogin ? 'zuletzt angemeldet ' + new Date(u.lastLogin).toLocaleString('de-DE', { dateStyle: 'short', timeStyle: 'short' }) : 'noch nie angemeldet'}</small>
+        </div>
+        <div class="link-row">
+          <input readonly value="${esc(inviteLink(u))}">
+          <button type="button" data-user-action="copy">Link kopieren</button>
+          <button type="button" class="secondary" data-user-action="regenerate">Neuer Link</button>
+        </div>
+        <div class="checks">
+          <label class="check"><input type="checkbox" data-user-action="admin" ${u.isAdmin ? 'checked' : ''}> Admin</label>
+          ${featureBoxes(u.features, 'data-user-action="feature"')}
+          <button type="button" class="icon danger" data-user-action="delete" title="Nutzer löschen">✕ Löschen</button>
+        </div>
+      </li>`).join('')
+    : '<li class="empty">Noch keine Nutzer angelegt</li>';
+}
+
+async function loadUsers() {
+  const data = await api('GET', 'users');
+  features = data.features;
+  renderUsers(data.users);
+}
+
+$('userForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const form = e.target;
+  const selected = {};
+  for (const box of form.querySelectorAll('[data-feature]')) selected[box.dataset.feature] = box.checked;
+  await api('POST', 'users', { username: form.elements.username.value, isAdmin: form.elements.isAdmin.checked, features: selected });
+  form.reset();
+  loadUsers();
+});
+
+$('userList').addEventListener('click', async (e) => {
+  const el = e.target.closest('[data-user-action]');
+  if (!el || el.tagName === 'INPUT') return;
+  const li = el.closest('li[data-user]');
+  const id = li.dataset.user;
+  const name = li.querySelector('strong').textContent;
+  const action = el.dataset.userAction;
+  if (action === 'copy') {
+    const input = li.querySelector('.link-row input');
+    try {
+      await navigator.clipboard.writeText(input.value);
+    } catch {
+      input.select();
+      document.execCommand('copy');
+    }
+    el.textContent = 'Kopiert ✓';
+    setTimeout(() => { el.textContent = 'Link kopieren'; }, 1500);
+    return;
+  }
+  if (action === 'regenerate' && confirm(`Neuen Link für ${name} erzeugen? Der alte Link funktioniert dann nicht mehr.`)) {
+    await api('POST', `users/${id}/regenerate`);
+    loadUsers();
+  }
+  if (action === 'delete' && confirm(`${name} wirklich löschen?`)) {
+    await api('DELETE', `users/${id}`);
+    loadUsers();
+  }
+});
+
+$('userList').addEventListener('change', async (e) => {
+  const box = e.target.closest('input[data-user-action]');
+  if (!box) return;
+  const id = box.closest('li[data-user]').dataset.user;
+  const body = box.dataset.userAction === 'admin'
+    ? { isAdmin: box.checked }
+    : { features: { [box.dataset.feature]: box.checked } };
+  await api('PATCH', `users/${id}`, body);
+  loadUsers();
+});
+
+// Beim Laden: gespeichertes Passwort oder Admin-Nutzer-Cookie prüfen.
+fetch('/api/admin/login', { method: 'POST', headers: authHeaders() })
+  .then((r) => {
+    if (r.ok) showAdmin();
+    else if (password) logout();
+  });

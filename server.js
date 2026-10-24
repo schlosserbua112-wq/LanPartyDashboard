@@ -38,7 +38,17 @@ const DEFAULT_STATE = {
   games: [],
   votes: {},
   servers: [],
+  users: [],
 };
+
+// Features, die der Admin pro Nutzer freischalten kann. Noch Platzhalter.
+const FEATURES = [
+  { key: 'gluecksrad', label: 'Glücksrad' },
+  { key: 'essen', label: 'Essensbestellung' },
+  { key: 'wishlist', label: 'Wishlist' },
+];
+const FEATURE_KEYS = new Set(FEATURES.map((f) => f.key));
+const SESSION_COOKIE = 'lp_session';
 
 // Erlaubte Felder je Sammlung und wie sie bereinigt werden.
 const COLLECTIONS = {
@@ -74,6 +84,7 @@ function loadState() {
       if (Array.isArray(raw[key])) state[key] = raw[key];
     }
     if (raw.votes && typeof raw.votes === 'object') state.votes = raw.votes;
+    if (Array.isArray(raw.users)) state.users = raw.users;
     return state;
   } catch (err) {
     if (err.code !== 'ENOENT') console.error('Konnte Daten nicht laden, starte leer:', err.message);
@@ -197,12 +208,55 @@ function readBody(req) {
   });
 }
 
+function safeEqual(x, y) {
+  const a = crypto.createHash('sha256').update(String(x)).digest();
+  const b = crypto.createHash('sha256').update(String(y)).digest();
+  return crypto.timingSafeEqual(a, b);
+}
+
+function parseCookies(req) {
+  const out = {};
+  for (const part of (req.headers.cookie || '').split(';')) {
+    const i = part.indexOf('=');
+    if (i > 0) out[part.slice(0, i).trim()] = decodeURIComponent(part.slice(i + 1).trim());
+  }
+  return out;
+}
+
+function findUserByToken(token) {
+  if (!token) return null;
+  return state.users.find((u) => safeEqual(u.token, token)) || null;
+}
+
+// Der angemeldete Nutzer (über das Cookie aus dem Einladungslink).
+function currentUser(req) {
+  return findUserByToken(parseCookies(req)[SESSION_COOKIE]);
+}
+
+// Admin ist, wer das Master-Passwort mitschickt oder als Admin-Nutzer angemeldet ist.
 function isAdmin(req) {
   const header = req.headers.authorization || '';
-  const token = header.startsWith('Bearer ') ? header.slice(7) : '';
-  const a = crypto.createHash('sha256').update(token).digest();
-  const b = crypto.createHash('sha256').update(ADMIN_PASSWORD).digest();
-  return crypto.timingSafeEqual(a, b);
+  if (header.startsWith('Bearer ') && safeEqual(header.slice(7), ADMIN_PASSWORD)) return true;
+  return Boolean(currentUser(req)?.isAdmin);
+}
+
+function newToken() {
+  return crypto.randomBytes(24).toString('base64url');
+}
+
+function cleanFeatures(input) {
+  const out = {};
+  for (const key of FEATURE_KEYS) out[key] = Boolean(input && input[key]);
+  return out;
+}
+
+function userView(u) {
+  return { id: u.id, username: u.username, isAdmin: u.isAdmin, features: u.features, token: u.token, createdAt: u.createdAt, lastLogin: u.lastLogin || null };
+}
+
+function redirect(res, location, headers = {}) {
+  res.writeHead(302, { Location: location, 'Cache-Control': 'no-store', ...headers });
+  res.end();
 }
 
 function sanitize(fields, input, partial) {
@@ -224,7 +278,7 @@ const MIME = {
   '.json': 'application/json',
 };
 
-const PAGES = { '/': 'index.html', '/admin': 'admin.html', '/vote': 'vote.html' };
+const PAGES = { '/': 'index.html', '/admin': 'admin.html', '/vote': 'vote.html', '/me': 'me.html' };
 
 function serveStatic(req, res, pathname) {
   const rel = PAGES[pathname] || pathname.slice(1);
@@ -281,6 +335,26 @@ async function handleApi(req, res, pathname) {
     return sendJson(res, 200, { gameId: state.votes[clientId] || null });
   }
 
+  if (method === 'GET' && pathname === '/api/me') {
+    const user = currentUser(req);
+    if (!user) return sendJson(res, 401, { error: 'Nicht angemeldet' });
+    return sendJson(res, 200, {
+      username: user.username,
+      isAdmin: user.isAdmin,
+      features: FEATURES.map((f) => ({ ...f, enabled: Boolean(user.features[f.key]) })),
+    });
+  }
+
+  // Platzhalter für die Features: prüft nur die Berechtigung.
+  if (method === 'GET' && pathname.startsWith('/api/features/')) {
+    const key = pathname.split('/')[3];
+    if (!FEATURE_KEYS.has(key)) return sendJson(res, 404, { error: 'Unbekanntes Feature' });
+    const user = currentUser(req);
+    if (!user) return sendJson(res, 401, { error: 'Nicht angemeldet' });
+    if (!user.features[key]) return sendJson(res, 403, { error: 'Kein Zugriff auf dieses Feature' });
+    return sendJson(res, 200, { feature: key, status: 'kommt bald' });
+  }
+
   if (!pathname.startsWith('/api/admin/')) return sendJson(res, 404, { error: 'Nicht gefunden' });
   if (!isAdmin(req)) return sendJson(res, 401, { error: 'Falsches Passwort' });
 
@@ -293,6 +367,8 @@ async function handleApi(req, res, pathname) {
     changed();
     return sendJson(res, 200, state.settings);
   }
+
+  if (parts[0] === 'users') return handleUsers(req, res, method, parts);
 
   if (method === 'POST' && parts[0] === 'votes' && parts[1] === 'reset') {
     state.votes = {};
@@ -345,10 +421,86 @@ async function handleApi(req, res, pathname) {
   return sendJson(res, 405, { error: 'Methode nicht erlaubt' });
 }
 
+async function handleUsers(req, res, method, parts) {
+  const id = parts[1];
+
+  if (method === 'GET' && !id) {
+    return sendJson(res, 200, { users: state.users.map(userView), features: FEATURES });
+  }
+
+  if (method === 'POST' && !id) {
+    const body = await readBody(req);
+    const username = str(40)(body.username);
+    if (!username) return sendJson(res, 400, { error: 'Nutzername fehlt' });
+    if (state.users.some((u) => u.username.toLowerCase() === username.toLowerCase())) {
+      return sendJson(res, 409, { error: 'Diesen Nutzernamen gibt es schon' });
+    }
+    const user = {
+      id: crypto.randomUUID(),
+      username,
+      isAdmin: Boolean(body.isAdmin),
+      features: cleanFeatures(body.features),
+      token: newToken(),
+      createdAt: Date.now(),
+    };
+    state.users.push(user);
+    scheduleSave();
+    return sendJson(res, 201, userView(user));
+  }
+
+  const user = state.users.find((u) => u.id === id);
+  if (!user) return sendJson(res, 404, { error: 'Nutzer nicht gefunden' });
+
+  if (method === 'PATCH' && parts.length === 2) {
+    const body = await readBody(req);
+    if ('username' in body) {
+      const username = str(40)(body.username);
+      if (!username) return sendJson(res, 400, { error: 'Nutzername fehlt' });
+      if (state.users.some((u) => u !== user && u.username.toLowerCase() === username.toLowerCase())) {
+        return sendJson(res, 409, { error: 'Diesen Nutzernamen gibt es schon' });
+      }
+      user.username = username;
+    }
+    if ('isAdmin' in body) user.isAdmin = Boolean(body.isAdmin);
+    if ('features' in body) user.features = cleanFeatures({ ...user.features, ...body.features });
+    scheduleSave();
+    return sendJson(res, 200, userView(user));
+  }
+
+  // Neuer Link: der alte funktioniert danach nicht mehr, bestehende Anmeldungen enden.
+  if (method === 'POST' && parts[2] === 'regenerate') {
+    user.token = newToken();
+    scheduleSave();
+    return sendJson(res, 200, userView(user));
+  }
+
+  if (method === 'DELETE' && parts.length === 2) {
+    state.users.splice(state.users.indexOf(user), 1);
+    scheduleSave();
+    return sendJson(res, 200, { ok: true });
+  }
+
+  return sendJson(res, 405, { error: 'Methode nicht erlaubt' });
+}
+
+function handleLogin(req, res, url) {
+  const user = findUserByToken(url.searchParams.get('token'));
+  if (!user) return redirect(res, '/me?ungueltig=1');
+  user.lastLogin = Date.now();
+  scheduleSave();
+  const cookie = `${SESSION_COOKIE}=${encodeURIComponent(user.token)}; Path=/; HttpOnly; SameSite=Lax; Max-Age=31536000`;
+  redirect(res, '/me', { 'Set-Cookie': cookie });
+}
+
 const server = http.createServer(async (req, res) => {
-  const { pathname } = new URL(req.url, 'http://localhost');
+  const url = new URL(req.url, 'http://localhost');
+  const { pathname } = url;
   try {
     if (pathname.startsWith('/api/')) return await handleApi(req, res, pathname);
+    if (req.method === 'GET' && pathname === '/login') return handleLogin(req, res, url);
+    if (req.method === 'GET' && pathname === '/logout') {
+      return redirect(res, '/me', { 'Set-Cookie': `${SESSION_COOKIE}=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0` });
+    }
     if (req.method !== 'GET' && req.method !== 'HEAD') return sendJson(res, 405, { error: 'Methode nicht erlaubt' });
     serveStatic(req, res, pathname);
   } catch (err) {
