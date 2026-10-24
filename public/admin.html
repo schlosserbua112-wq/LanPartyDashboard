@@ -90,33 +90,39 @@
     </section>
     </div>
 
-    <div class="view" id="view-wheel" hidden>
-      <section class="card">
+    <div class="view wheel-layout" id="view-wheel" hidden>
+      <section class="card wheel-stage">
         <h2>Glücksrad <small id="wheelOpen"></small></h2>
-        <div class="toggle-row">
-          <button type="button" id="toggleOpen"></button>
-          <button type="button" class="secondary" id="clearWheel">Rad leeren</button>
-        </div>
         <div class="wheel-wrap"><canvas id="wheel"></canvas></div>
         <p class="wheel-status" id="wheelStatus"></p>
-        <button type="button" class="spin-btn" id="spinBtn">Drehen!</button>
-        <p class="error" id="wheelError"></p>
       </section>
 
-      <section class="card">
-        <h2>Wer darf drehen?</h2>
-        <p class="muted">Admins dürfen immer drehen. Wer drehen darf, bekommt auf seiner Seite einen „Drehen!“-Knopf.</p>
-        <div class="toggle-row" id="spinners"></div>
-      </section>
+      <div class="wheel-side">
+        <section class="card">
+          <h2>Steuerung</h2>
+          <button type="button" class="spin-btn" id="spinBtn" title="Leertaste">Drehen!</button>
+          <div class="toggle-row">
+            <button type="button" id="toggleOpen"></button>
+            <button type="button" class="secondary" id="clearWheel">Rad leeren</button>
+          </div>
+          <p class="error" id="wheelError"></p>
+        </section>
 
-      <section class="card">
-        <h2>Einträge</h2>
-        <form class="row" id="wheelEntryForm">
-          <input name="text" maxlength="40" placeholder="Eintrag als Admin hinzufügen" required>
-          <button>Hinzufügen</button>
-        </form>
-        <ul class="items" id="wheelEntries"></ul>
-      </section>
+        <section class="card">
+          <h2>Wer darf drehen?</h2>
+          <p class="muted">Admins dürfen immer drehen. Wer drehen darf, bekommt auf seiner Seite einen „Drehen!“-Knopf.</p>
+          <div class="toggle-row" id="spinners"></div>
+        </section>
+
+        <section class="card">
+          <h2>Einträge <small id="entryCount"></small></h2>
+          <form class="row" id="wheelEntryForm">
+            <input name="text" maxlength="40" placeholder="Eintrag als Admin hinzufügen" required>
+            <button>Hinzufügen</button>
+          </form>
+          <ul class="items scroll" id="wheelEntries"></ul>
+        </section>
+      </div>
     </div>
 
     <div class="view" id="view-users" hidden>

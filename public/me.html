@@ -12,33 +12,42 @@
     <p class="muted" id="outText">Öffne den persönlichen Link, den du vom Admin bekommen hast.</p>
   </main>
 
-  <main class="narrow" id="in" hidden>
-    <nav class="mode-switch" id="modeSwitch" aria-label="Modus" hidden>
-      <a href="/admin">Admin-Modus</a>
-      <a href="/me" class="active" aria-current="page">Nutzermodus</a>
-    </nav>
-    <h1>Hallo <span id="username"></span>!</h1>
+  <main class="wide" id="in" hidden>
+    <header class="me-head">
+      <h1>Hallo <span id="username"></span>!</h1>
+      <nav class="mode-switch" id="modeSwitch" aria-label="Modus" hidden>
+        <a href="/admin">Admin-Modus</a>
+        <a href="/me" class="active" aria-current="page">Nutzermodus</a>
+      </nav>
+      <nav class="links">
+        <a href="/">Anzeige</a> · <a href="/vote">Abstimmen</a> · <a href="/logout" id="logout">Abmelden</a>
+      </nav>
+    </header>
     <p class="muted" id="masterHint" hidden>Du bist mit dem Admin-Passwort angemeldet und siehst darum alle Features.</p>
-    <nav class="links">
-      <a href="/">Anzeige</a> · <a href="/vote">Abstimmen</a> · <a href="/logout" id="logout">Abmelden</a>
-    </nav>
 
     <h2 class="section">Deine Features</h2>
     <ul class="feature-grid" id="features"></ul>
     <p class="muted" id="featureMsg"></p>
 
     <section class="card wheel-section" id="wheelSection" hidden>
-      <h2>Glücksrad <small id="wheelOpen"></small></h2>
-      <div class="wheel-wrap"><canvas id="wheel"></canvas></div>
-      <p class="wheel-status" id="wheelStatus"></p>
-      <button id="spinBtn" class="spin-btn" hidden>Drehen!</button>
-      <form id="entryForm" class="row">
-        <input name="text" maxlength="40" placeholder="Neuer Eintrag fürs Rad" required>
-        <button>Hinzufügen</button>
-      </form>
-      <p class="muted" id="closedHint" hidden>Die Eingabe ist geschlossen, es kommen keine neuen Einträge mehr dazu.</p>
-      <p class="error" id="wheelError"></p>
-      <ul class="items" id="entries"></ul>
+      <div class="wheel-layout">
+        <div class="wheel-stage">
+          <h2>Glücksrad <small id="wheelOpen"></small></h2>
+          <div class="wheel-wrap"><canvas id="wheel"></canvas></div>
+          <p class="wheel-status" id="wheelStatus"></p>
+        </div>
+        <div class="wheel-side">
+          <button id="spinBtn" class="spin-btn" hidden title="Leertaste">Drehen!</button>
+          <form id="entryForm" class="row">
+            <input name="text" maxlength="40" placeholder="Neuer Eintrag fürs Rad" required>
+            <button>Hinzufügen</button>
+          </form>
+          <p class="muted" id="closedHint" hidden>Die Eingabe ist geschlossen, es kommen keine neuen Einträge mehr dazu.</p>
+          <p class="error" id="wheelError"></p>
+          <h3 class="side-title">Einträge <small id="entryCount"></small></h3>
+          <ul class="items scroll" id="entries"></ul>
+        </div>
+      </div>
     </section>
   </main>
 
@@ -124,6 +133,7 @@
       $('spinBtn').hidden = !canSpin;
       $('entryForm').hidden = !canAdd;
       $('closedHint').hidden = canAdd || !hasFeature;
+      $('entryCount').textContent = `(${w.entries.length})`;
       $('entries').innerHTML = w.entries.length
         ? w.entries.map((e) => {
             const canDelete = me.isAdmin || (hasFeature && e.ownerId === me.id && w.open);
@@ -144,6 +154,7 @@
     });
 
     $('spinBtn').addEventListener('click', () => wheelApi('POST', 'spin'));
+    onSpaceKey(() => !$('spinBtn').hidden && !$('spinBtn').disabled && $('spinBtn').click());
 
     // Glücksrad öffnet den Abschnitt oben; die anderen Features sind noch Platzhalter.
     $('features').addEventListener('click', async (e) => {

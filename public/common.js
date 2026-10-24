@@ -18,6 +18,16 @@ function subscribe(onState, onStatus) {
   return source;
 }
 
+// Leertaste löst eine Aktion aus, außer jemand tippt gerade in ein Feld.
+function onSpaceKey(action) {
+  document.addEventListener('keydown', (e) => {
+    if (e.code !== 'Space' || e.repeat) return;
+    if (e.target.closest('input, textarea, button, select')) return;
+    e.preventDefault();
+    action();
+  });
+}
+
 // "2026-10-24T18:00" oder "18:00" -> Date (heute) bzw. null
 function parseTime(value) {
   if (!value) return null;

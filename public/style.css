@@ -109,8 +109,8 @@ ul, ol { list-style: none; margin: 0; padding: 0; }
 .badge.alt { background: var(--card-2); color: var(--accent-2); border: 1px solid var(--accent-2); }
 
 .wheel-card { display: flex; flex-direction: column; }
-.wheel-wrap { flex: 1; min-height: 0; display: grid; place-items: center; }
-.wheel-wrap canvas { width: 100%; height: 100%; display: block; }
+.wheel-wrap { flex: 1; min-height: 0; position: relative; }
+.wheel-wrap canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
 .wheel-status { margin: 0.6rem 0 0; min-height: 1.6em; text-align: center; font-size: 1.3em; color: var(--muted); }
 .wheel-status.result { color: var(--warn); font-weight: 700; font-size: 1.8em; }
 
@@ -297,10 +297,41 @@ button.danger:hover { background: var(--bad); color: #fff; }
 }
 .mode-switch a.active { background: var(--accent); color: var(--bg); }
 
-/* Glücksrad auf der Nutzer- und Admin-Seite */
-.wheel-section { margin-top: 1.5rem; display: grid; gap: 0.6rem; }
-.wheel-section .wheel-wrap, .admin .wheel-wrap { height: min(80vw, 420px); }
-.wheel-section .wheel-status.result, .admin .wheel-status.result { font-size: 1.4em; }
-.spin-btn { display: block; margin: 0 auto; font-size: 1.2rem; padding: 0.7rem 2.5rem; }
+/* Glücksrad auf der Nutzer- und Admin-Seite (Desktop zuerst) */
+.wide { max-width: 1280px; margin: 0 auto; }
+.admin { max-width: 1280px; }
+.me-head { display: flex; flex-wrap: wrap; align-items: center; gap: 0.8rem 1.5rem; margin-bottom: 1rem; }
+.me-head h1 { margin: 0 auto 0 0; }
+.me-head .mode-switch { margin: 0; }
+.me-head .links { margin: 0; }
+.feature-grid { grid-template-columns: repeat(auto-fill, minmax(180px, 220px)); }
+.feature-grid button { min-height: 72px; }
+
+.wheel-section { margin-top: 1.2rem; }
+.wheel-layout { display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(320px, 1fr); gap: 1.5rem; align-items: start; }
+.view.wheel-layout { gap: 1rem; }
+.wheel-stage { display: flex; flex-direction: column; }
+.wheel-stage .wheel-wrap { flex: none; height: clamp(380px, calc(100vh - 300px), 720px); }
+.wheel-stage .wheel-status { font-size: 1.4em; }
+.wheel-stage .wheel-status.result { font-size: 2.2em; }
+.wheel-side { display: grid; gap: 0.8rem; align-content: start; }
+.wheel-side .card { display: grid; gap: 0.6rem; }
+.wheel-side .card h2 { margin-bottom: 0; }
+.wheel-side .row { margin-bottom: 0; }
+.wheel-side .error:empty { display: none; }
+.side-title { margin: 0.4rem 0 0; font-size: 0.9rem; text-transform: uppercase; letter-spacing: 0.12em; color: var(--accent); }
+.items.scroll { max-height: calc(100vh - 480px); min-height: 160px; overflow-y: auto; }
+.spin-btn { width: 100%; font-size: 1.4rem; padding: 1rem; }
+
+/* Schmale Fenster: Rad über den Bedienelementen */
+@media (max-width: 900px) {
+  .wheel-layout { grid-template-columns: 1fr; }
+  .wheel-stage .wheel-wrap { height: min(85vw, 440px); }
+  .items.scroll { max-height: none; }
+}
 .spin-btn:disabled { opacity: 0.5; cursor: default; }
 .toggle-row { display: flex; flex-wrap: wrap; gap: 0.5rem 1.2rem; align-items: center; }
+.wheel-section .wheel-stage .wheel-wrap { height: clamp(360px, calc(100vh - 380px), 720px); }
+@media (max-width: 900px) {
+  .wheel-section .wheel-stage .wheel-wrap { height: min(85vw, 440px); }
+}

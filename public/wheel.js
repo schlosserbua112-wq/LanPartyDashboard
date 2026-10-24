@@ -84,7 +84,9 @@ function createWheel(canvas, onStatus) {
         ctx.fillStyle = '#0b0f1a';
         ctx.textAlign = 'right';
         ctx.textBaseline = 'middle';
-        ctx.fillText(fitText(ctx, entry.text, r * 0.72), r - 12, 0);
+        // Etwas Abstand zum Rand, damit der Zeiger den Text nicht verdeckt.
+        const inset = Math.max(14, size * 0.075);
+        ctx.fillText(fitText(ctx, entry.text, r - inset - size * 0.08), r - inset, 0);
         ctx.restore();
       });
     }
@@ -155,6 +157,8 @@ function createWheel(canvas, onStatus) {
     draw();
   }
 
-  window.addEventListener('resize', draw);
+  // Neu zeichnen, sobald sich die Größe ändert (Fenster, Reiterwechsel, Layout).
+  if (window.ResizeObserver) new ResizeObserver(() => { if (!anim) draw(); }).observe(canvas);
+  else window.addEventListener('resize', draw);
   return { update, redraw: draw };
 }

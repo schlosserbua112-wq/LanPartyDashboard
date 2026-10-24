@@ -280,6 +280,7 @@ function renderWheelAdmin() {
   const w = state.wheel;
   $('wheelOpen').textContent = w.open ? 'Einträge offen' : 'Eingabe geschlossen';
   $('toggleOpen').textContent = w.open ? 'Eingabe stoppen' : 'Eingabe wieder öffnen';
+  $('entryCount').textContent = `(${w.entries.length})`;
   $('wheelEntries').innerHTML = w.entries.length
     ? w.entries.map((e) => `<li><span class="grow">${esc(e.text)} <small>von ${esc(e.owner)}</small></span><button class="icon danger" data-entry="${esc(e.id)}" title="Entfernen">✕</button></li>`).join('')
     : '<li class="empty">Noch keine Einträge</li>';
@@ -298,6 +299,7 @@ $('clearWheel').addEventListener('click', () => {
 });
 
 $('spinBtn').addEventListener('click', () => wheelApi('POST', 'spin'));
+onSpaceKey(() => !$('view-wheel').hidden && !$('spinBtn').disabled && $('spinBtn').click());
 
 $('spinners').addEventListener('change', () => {
   const ids = [...$('spinners').querySelectorAll('input[data-spinner]:checked')].map((b) => b.dataset.spinner);
