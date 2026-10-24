@@ -42,6 +42,7 @@ const DEFAULT_STATE = {
   tournaments: [],
   wheel: { open: true, entries: [], spinnerIds: [], spin: null },
   achievements: emptyAchievements(),
+  teams: { pool: [], teamCount: 2, balanced: false, usersCanGenerate: true, result: null },
 };
 
 // Features, die der Admin pro Nutzer freischalten kann. Noch Platzhalter.
@@ -49,6 +50,7 @@ const FEATURES = [
   { key: 'gluecksrad', label: 'Glücksrad' },
   { key: 'abstimmungen', label: 'Abstimmungen' },
   { key: 'turniere', label: 'Turniere' },
+  { key: 'teams', label: 'Team-Generator' },
   { key: 'essen', label: 'Essensbestellung' },
   { key: 'wishlist', label: 'Wishlist' },
 ];
@@ -101,6 +103,7 @@ function loadState() {
     }
     if (raw.wheel && typeof raw.wheel === 'object') Object.assign(state.wheel, raw.wheel);
     if (raw.achievements && typeof raw.achievements === 'object') Object.assign(state.achievements, raw.achievements);
+    if (raw.teams && typeof raw.teams === 'object') Object.assign(state.teams, raw.teams);
     return state;
   } catch (err) {
     if (err.code !== 'ENOENT') console.error('Konnte Daten nicht laden, starte leer:', err.message);
@@ -197,6 +200,7 @@ function publicState() {
     leaderboard: { rows: lb.rows, games: lb.games, recent: lb.recent },
     polls: state.polls.map(pollView),
     tournaments: state.tournaments.map(tournamentView),
+    teams: teamsView(),
     servers: state.servers.map((s) => ({ ...s, status: serverStatus[s.id] || null })),
     achievements: achievements.publicView(state.users),
   };
@@ -412,6 +416,7 @@ async function handleApi(req, res, pathname) {
   }
 
   if (pathname.startsWith('/api/wheel/')) return handleWheel(req, res, method, pathname.split('/').slice(3));
+  if (pathname.startsWith('/api/teams/')) return handleTeams(req, res, method, pathname.split('/').slice(3));
 
   if (!pathname.startsWith('/api/admin/')) return sendJson(res, 404, { error: 'Nicht gefunden' });
   if (!isAdmin(req)) return sendJson(res, 401, { error: 'Falsches Passwort' });
@@ -433,6 +438,7 @@ async function handleApi(req, res, pathname) {
   if (parts[0] === 'players') return handlePlayersAdmin(req, res, method, parts);
   if (parts[0] === 'scores') return handleScoresAdmin(req, res, method, parts);
   if (parts[0] === 'achievements') return handleAchievementsAdmin(req, res, method, parts);
+  if (parts[0] === 'teams') return handleTeamsAdmin(req, res, method, parts);
 
   const fields = COLLECTIONS[parts[0]];
   if (!fields) return sendJson(res, 404, { error: 'Nicht gefunden' });
@@ -531,6 +537,7 @@ async function handleUsers(req, res, method, parts) {
     for (const poll of state.polls) delete poll.votes[user.id];
     removeUserFromTournaments(user.id);
     achievements.removeUser(user.id);
+    state.teams.pool = state.teams.pool.filter((p) => p.userId !== user.id);
     // Der Spieler bleibt samt Punkten im Leaderboard, nur ohne Anmeldung.
     for (const p of state.players) if (p.userId === user.id) p.userId = null;
     changed();
@@ -1332,6 +1339,203 @@ async function handleAchievementsAdmin(req, res, method, parts) {
     const unlockIds = state.achievements.unlocks.filter((u) => u.achId === parts[2]).map((u) => u.id);
     if (!achievements.removeCustom(parts[2])) return sendJson(res, 404, { error: 'Nur eigene Achievements lassen sich löschen' });
     for (const id of unlockIds) revokeScores(id);
+    changed();
+    return sendJson(res, 200, { ok: true });
+  }
+
+  return sendJson(res, 404, { error: 'Nicht gefunden' });
+}
+
+// ---------------------------------------------------------------------------
+// Team-Generator
+
+const MAX_TEAM_POOL = 64;
+const MAX_TEAMS = 8;
+// So lange zeigen die Anzeigen die Auslosung; währenddessen wird nicht neu gelost.
+const TEAM_SHUFFLE_MS = 2200;
+const TEAM_STEP_MS = 650;
+const TEAM_NAMES = [
+  'Lag-Monster', 'Ctrl+Alt+Defeat', 'Headshot-Hamster', 'Respawn-Rebellen', 'Kabelsalat',
+  'Noob-Patrouille', 'Ping-Pong-Pandas', 'Low-FPS-Legenden', 'Frag-Fabrik', 'Camper-Clan',
+  'Die Pixelpiraten', 'Team Tastatur', 'Mausrad-Mafia', 'Bluescreen-Brigade', 'Energy-Drink-Elite',
+  'Die Rage-Quitter', 'Overclocker', 'Spawn-Killer', 'Die Lootgoblins', 'GG-Gang',
+];
+const TEAM_COLORS = ['#38e1ff', '#b16cff', '#ffc857', '#3ddc84', '#ff5c7a', '#5b8cff', '#ff9f43', '#2ee6c5'];
+
+function shuffled(list) {
+  const out = [...list];
+  for (let i = out.length - 1; i > 0; i--) {
+    const j = crypto.randomInt(i + 1);
+    [out[i], out[j]] = [out[j], out[i]];
+  }
+  return out;
+}
+
+// Teilnehmer mit aktuellem Namen (Nutzer können umbenannt werden) und Punkten
+// aus dem globalen Leaderboard: über den verknüpften Spieler des Nutzers,
+// sonst über einen Spieler mit gleichem Namen.
+function teamPool() {
+  const rows = leaderboardView().rowsInRosterOrder;
+  const byUser = new Map(rows.filter((r) => r.userId).map((r) => [r.userId, r.points]));
+  const byName = new Map(rows.map((r) => [r.name.toLowerCase(), r.points]));
+  return state.teams.pool.map((p) => {
+    const name = p.userId ? state.users.find((u) => u.id === p.userId)?.username || p.name : p.name;
+    const points = (p.userId && byUser.get(p.userId)) ?? byName.get(name.toLowerCase()) ?? null;
+    return { id: p.id, userId: p.userId || null, name, points };
+  });
+}
+
+function teamRevealDuration(result) {
+  return TEAM_SHUFFLE_MS + result.order.length * TEAM_STEP_MS;
+}
+
+function teamsView() {
+  const t = state.teams;
+  return {
+    pool: teamPool(),
+    teamCount: t.teamCount,
+    balanced: t.balanced,
+    usersCanGenerate: t.usersCanGenerate,
+    result: t.result
+      ? { ...t.result, age: Date.now() - t.result.startedAt, shuffleMs: TEAM_SHUFFLE_MS, stepMs: TEAM_STEP_MS, duration: teamRevealDuration(t.result) }
+      : null,
+  };
+}
+
+function isRevealing() {
+  const r = state.teams.result;
+  return Boolean(r && Date.now() - r.startedAt < teamRevealDuration(r));
+}
+
+function generateTeams(by) {
+  const t = state.teams;
+  const pool = teamPool();
+  const count = Math.min(t.teamCount, pool.length);
+  const teams = shuffled(TEAM_NAMES).slice(0, count).map((name, i) => ({ name, color: TEAM_COLORS[i % TEAM_COLORS.length], members: [] }));
+
+  let picks;
+  if (t.balanced) {
+    // Schlangen-Draft nach Punkten: 1-2-3-3-2-1… Gleich starke Spieler in zufälliger Reihenfolge.
+    picks = shuffled(pool).sort((a, b) => (b.points ?? 0) - (a.points ?? 0));
+    picks.forEach((p, i) => {
+      const round = Math.floor(i / count);
+      const slot = i % count;
+      teams[round % 2 ? count - 1 - slot : slot].members.push(p);
+    });
+  } else {
+    // Reihum verteilen, ab einem zufälligen Team, damit Überzählige nicht immer bei Team 1 landen.
+    const start = crypto.randomInt(count);
+    shuffled(pool).forEach((p, i) => teams[(start + i) % count].members.push(p));
+  }
+
+  // Enthüllung abwechselnd: erster Spieler jedes Teams, dann der zweite …
+  const order = [];
+  const longest = Math.max(...teams.map((tm) => tm.members.length));
+  for (let m = 0; m < longest; m++) {
+    teams.forEach((tm, ti) => { if (m < tm.members.length) order.push([ti, m]); });
+  }
+
+  return {
+    id: crypto.randomUUID(),
+    startedAt: Date.now(),
+    by,
+    balanced: t.balanced,
+    teams: teams.map((tm) => ({
+      ...tm,
+      members: tm.members.map((m) => ({ name: m.name, points: m.points })),
+      points: t.balanced ? tm.members.reduce((sum, m) => sum + (m.points ?? 0), 0) : null,
+    })),
+    order,
+  };
+}
+
+function applyTeamSettings(body) {
+  const t = state.teams;
+  if ('teamCount' in body) t.teamCount = Math.min(MAX_TEAMS, Math.max(2, num(body.teamCount)));
+  if ('balanced' in body) t.balanced = Boolean(body.balanced);
+}
+
+async function handleTeams(req, res, method, parts) {
+  const user = viewer(req);
+  if (!user) return sendJson(res, 401, { error: 'Nicht angemeldet' });
+  if (!user.isAdmin && !user.features.teams) return sendJson(res, 403, { error: 'Kein Zugriff auf den Team-Generator' });
+  const t = state.teams;
+  const mine = (p) => p.userId === user.id;
+
+  if (method === 'POST' && parts[0] === 'join' && parts.length === 1) {
+    if (user.master) return sendJson(res, 409, { error: 'Mit dem Admin-Passwort kannst du nicht mitspielen' });
+    if (t.pool.some(mine)) return sendJson(res, 200, { ok: true });
+    if (t.pool.length >= MAX_TEAM_POOL) return sendJson(res, 409, { error: 'Es sind schon genug dabei' });
+    t.pool.push({ id: crypto.randomUUID(), userId: user.id, name: user.username });
+    changed();
+    return sendJson(res, 200, { ok: true });
+  }
+
+  if (method === 'POST' && parts[0] === 'leave' && parts.length === 1) {
+    t.pool = t.pool.filter((p) => !mine(p));
+    changed();
+    return sendJson(res, 200, { ok: true });
+  }
+
+  if (method === 'POST' && parts[0] === 'generate' && parts.length === 1) {
+    if (!user.isAdmin && !t.usersCanGenerate) return sendJson(res, 403, { error: 'Nur Admins dürfen gerade auslosen' });
+    if (isRevealing()) return sendJson(res, 409, { error: 'Die Teams werden gerade ausgelost' });
+    applyTeamSettings(await readBody(req));
+    if (t.pool.length < 2) return sendJson(res, 409, { error: 'Mindestens zwei Teilnehmer nötig' });
+    t.result = generateTeams(user.username);
+    changed();
+    return sendJson(res, 200, { ok: true });
+  }
+
+  return sendJson(res, 404, { error: 'Nicht gefunden' });
+}
+
+async function handleTeamsAdmin(req, res, method, parts) {
+  const t = state.teams;
+
+  if (method === 'PUT' && parts.length === 1) {
+    const body = await readBody(req);
+    applyTeamSettings(body);
+    if ('usersCanGenerate' in body) t.usersCanGenerate = Boolean(body.usersCanGenerate);
+    changed();
+    return sendJson(res, 200, { ok: true });
+  }
+
+  // Teilnehmer hinzufügen: Gäste per Name oder Nutzer per ID.
+  if (method === 'POST' && parts[1] === 'pool' && parts.length === 2) {
+    const body = await readBody(req);
+    const userIds = new Set(Array.isArray(body.userIds) ? body.userIds.map(String) : []);
+    const names = (Array.isArray(body.names) ? body.names : [body.name]).map(str(40)).filter(Boolean);
+    const taken = new Set(teamPool().map((p) => p.name.toLowerCase()));
+    for (const u of state.users) {
+      if (!userIds.has(u.id) || t.pool.some((p) => p.userId === u.id)) continue;
+      t.pool.push({ id: crypto.randomUUID(), userId: u.id, name: u.username });
+      taken.add(u.username.toLowerCase());
+    }
+    for (const name of names) {
+      if (taken.has(name.toLowerCase())) continue;
+      t.pool.push({ id: crypto.randomUUID(), userId: null, name });
+      taken.add(name.toLowerCase());
+    }
+    t.pool = t.pool.slice(0, MAX_TEAM_POOL);
+    changed();
+    return sendJson(res, 200, { ok: true });
+  }
+
+  if (method === 'DELETE' && parts[1] === 'pool' && parts.length === 3) {
+    t.pool = t.pool.filter((p) => p.id !== parts[2]);
+    changed();
+    return sendJson(res, 200, { ok: true });
+  }
+
+  if (method === 'POST' && parts[1] === 'clear') {
+    t.pool = [];
+    changed();
+    return sendJson(res, 200, { ok: true });
+  }
+
+  if (method === 'POST' && parts[1] === 'reset') {
+    t.result = null;
     changed();
     return sendJson(res, 200, { ok: true });
   }

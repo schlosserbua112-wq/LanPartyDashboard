@@ -33,6 +33,7 @@
       <button type="button" data-view="leaderboard">Leaderboard</button>
       <button type="button" data-view="tournaments">Turniere</button>
       <button type="button" data-view="achievements">Achievements</button>
+      <button type="button" data-view="teams">Teams</button>
       <button type="button" data-view="users">Nutzer</button>
     </nav>
 
@@ -243,6 +244,37 @@
       </section>
     </div>
 
+    <div class="view polls-layout" id="view-teams" hidden>
+      <section class="card">
+        <h2>Teilnehmer <small id="teamPoolCount"></small></h2>
+        <form class="row" id="teamGuestForm">
+          <input name="name" maxlength="40" placeholder="Gast ohne Nutzerkonto, z.B. Max" required>
+          <button>Hinzufügen</button>
+        </form>
+        <div class="toggle-row">
+          <button type="button" class="secondary" id="teamAddAll">Alle Nutzer hinzufügen</button>
+          <button type="button" class="secondary" id="teamClear">Alle entfernen</button>
+        </div>
+        <p class="muted" id="teamCandidatesLabel">Nutzer hinzufügen:</p>
+        <ul class="chips add" id="teamCandidates"></ul>
+        <ul class="chips" id="teamPool"></ul>
+        <p class="muted">Nutzer mit dem Feature „Team-Generator“ können sich im Dashboard selbst ein- und austragen. Beim Ausgleichen zählen die Punkte aus dem Leaderboard.</p>
+      </section>
+
+      <section class="card">
+        <h2>Auslosen</h2>
+        <form id="teamForm" class="team-controls">
+          <label>Teams <select name="teamCount"></select></label>
+          <label class="check"><input type="checkbox" name="balanced"> Nach Punkten ausgleichen</label>
+          <label class="check"><input type="checkbox" name="usersCanGenerate"> Nutzer dürfen auslosen</label>
+          <button class="spin-btn" id="teamGenerate">Teams auslosen!</button>
+          <button type="button" class="secondary" id="teamReset">Ergebnis ausblenden</button>
+        </form>
+        <p class="error" id="teamError"></p>
+        <div class="team-cols" id="teamResult"></div>
+      </section>
+    </div>
+
     <div class="view" id="view-users" hidden>
       <section class="card">
         <h2>Nutzer anlegen</h2>
@@ -267,6 +299,7 @@
   <script src="/wheel.js"></script>
   <script src="/tournament.js"></script>
   <script src="/achievements.js"></script>
+  <script src="/teams.js"></script>
   <script src="/admin.js"></script>
 </body>
 </html>

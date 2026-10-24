@@ -12,7 +12,7 @@ Ein schlankes Dashboard für LAN-Partys, gebaut für den Raspberry Pi. Ein Bilds
 Im Admin-Bereich gibt es den Reiter **Nutzer**. Dort legst du Nutzer mit Nutzernamen an und schickst ihnen ihren persönlichen Link (`/login?token=…`). Wer den Link öffnet, ist auf diesem Gerät angemeldet und sieht im Dashboard seine Features.
 
 - **Admin**: Nutzer mit Admin-Haken kommen ohne Passwort in `/admin`. Das Master-Passwort aus `ADMIN_PASSWORD` funktioniert weiterhin.
-- **Features**: Pro Nutzer schaltest du Glücksrad, Abstimmungen, Turniere, Essensbestellung und Wishlist frei. Essensbestellung und Wishlist sind noch Platzhalter.
+- **Features**: Pro Nutzer schaltest du Glücksrad, Abstimmungen, Turniere, Team-Generator, Essensbestellung und Wishlist frei. Essensbestellung und Wishlist sind noch Platzhalter.
 
 ## Abstimmungen
 
@@ -44,6 +44,13 @@ Im Admin-Bereich gibt es den Reiter **Nutzer**. Dort legst du Nutzer mit Nutzern
 - Im Admin-Reiter **Achievements** vergibst du die übrigen von Hand (MVP, Clutch-König, Turniersieger, …), legst eigene mit Emoji, Beschreibung und Seltenheit an und nimmst Achievements wieder weg.
 - Seltenheiten bringen Punkte: Gewöhnlich 10, Selten 25, Episch 50, Legendär 100. Im Dashboard sieht jeder seine Kacheln mit Fortschritt, das Achievement-Ranking und die letzten Freischaltungen. Die Punkte landen auch im globalen Leaderboard; wird ein Achievement weggenommen oder gelöscht, verschwinden sie dort wieder.
 - Jede Freischaltung wird gefeiert: Die TV-Anzeige zeigt ein großes Popup mit Konfetti und Fanfare, auf dem eigenen Gerät gibt es das Popup für eigene Achievements und einen kleinen Hinweis für die der anderen. Der Ton hängt am gemeinsamen 🔊-Knopf (Taste **M**). Browser spielen Ton erst nach dem ersten Klick ab; `deploy/kiosk.sh` startet Chromium deshalb mit `--autoplay-policy=no-user-gesture-required`.
+
+## Team-Generator
+
+- Nutzer mit dem Feature „Team-Generator“ tragen sich im Dashboard mit „Ich bin dabei!“ ein, wählen die Anzahl der Teams und losen aus.
+- Im Admin-Reiter **Teams** fügst du Nutzer oder Gäste ohne Konto hinzu, entfernst Teilnehmer, legst fest, ob Nutzer selbst auslosen dürfen, und blendest das Ergebnis wieder aus.
+- **Nach Punkten ausgleichen** verteilt die Spieler per Schlangen-Draft nach ihren Punkten im globalen Leaderboard (verknüpfter Spieler oder gleicher Name), sonst wird rein zufällig gelost. Teamnamen werden zufällig vergeben.
+- Die Auslosung läuft als Show auf allen Bildschirmen gleichzeitig: Namen rattern durch, die Spieler fliegen nacheinander in ihre Teams, am Ende gibt es Konfetti und eine Fanfare. Der Ton hängt am gemeinsamen 🔊-Knopf (Taste **M**). Die TV-Anzeige zeigt das Ergebnis 30 Sekunden lang.
 
 ## Glücksrad
 

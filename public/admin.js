@@ -60,6 +60,7 @@ function render(next) {
   renderLeaderboardAdmin();
   tournaments.update(state.tournaments);
   renderAchievementsAdmin();
+  renderTeamsAdmin();
   // Einstellungen nur befüllen, wenn gerade niemand darin tippt.
   const form = $('settingsForm');
   if (!form.contains(document.activeElement)) {
@@ -142,12 +143,11 @@ $('tabs').addEventListener('click', (e) => {
   if (!btn) return;
   for (const b of $('tabs').querySelectorAll('button')) b.classList.toggle('active', b === btn);
   for (const v of document.querySelectorAll('.view')) v.hidden = v.id !== 'view-' + btn.dataset.view;
-  if (btn.dataset.view === 'users' || btn.dataset.view === 'achievements') loadUsers();
+  if (['users', 'achievements', 'teams', 'tournaments'].includes(btn.dataset.view)) loadUsers();
   if (btn.dataset.view === 'leaderboard') {
     loadUsers();
     loadScoreHistory();
   }
-  if (btn.dataset.view === 'tournaments') loadUsers();
   if (btn.dataset.view === 'wheel') {
     loadUsers();
     if (state) wheel.update(state.wheel);
@@ -200,6 +200,7 @@ async function loadUsers() {
   renderTournamentUsers();
   renderTournamentActions(tournaments.selected());
   renderAchievementsAdmin();
+  renderTeamsAdmin();
 }
 
 $('userForm').addEventListener('submit', async (e) => {
@@ -652,6 +653,78 @@ $('achAdminList').addEventListener('click', (e) => {
 });
 
 document.querySelector('.admin-head nav:last-child').prepend(FX.muteButton());
+
+// --- Team-Generator ------------------------------------------------------------
+
+const teamReveal = createTeamReveal();
+$('teamForm').elements.teamCount.innerHTML = [2, 3, 4, 5, 6, 7, 8].map((n) => `<option>${n}</option>`).join('');
+
+function renderTeamsAdmin() {
+  if (!state) return;
+  const t = state.teams;
+  teamReveal.update(t.result);
+  $('teamPoolCount').textContent = `(${t.pool.length})`;
+  $('teamPool').innerHTML = t.pool.length
+    ? t.pool.map((p) => `<li>${esc(p.name)}${p.userId ? '' : ' <small>Gast</small>'}<button type="button" data-team-remove="${esc(p.id)}" title="Entfernen">✕</button></li>`).join('')
+    : '<li class="empty">Noch niemand dabei</li>';
+  const inPool = new Set(t.pool.map((p) => p.userId));
+  const candidates = users.filter((u) => !inPool.has(u.id));
+  $('teamCandidates').innerHTML = candidates.length
+    ? candidates.map((u) => `<li><button type="button" data-team-add="${esc(u.id)}">+ ${esc(u.username)}</button></li>`).join('')
+    : '';
+  $('teamCandidatesLabel').hidden = !candidates.length;
+  const form = $('teamForm');
+  if (!form.contains(document.activeElement)) {
+    form.elements.teamCount.value = String(t.teamCount);
+    form.elements.balanced.checked = t.balanced;
+    form.elements.usersCanGenerate.checked = t.usersCanGenerate;
+  }
+  const r = t.result;
+  const revealing = r && r.age < r.duration;
+  $('teamGenerate').disabled = t.pool.length < 2 || revealing;
+  $('teamReset').hidden = !r;
+  $('teamResult').innerHTML = !r ? '' : revealing ? '<p class="empty">Die Teams werden gerade ausgelost…</p>' : teamColumnsHtml(r);
+  clearTimeout(renderTeamsAdmin.timer);
+  if (revealing) renderTeamsAdmin.timer = setTimeout(renderTeamsAdmin, r.duration - r.age + 50);
+}
+
+$('teamGuestForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  await api('POST', 'teams/pool', { name: e.target.elements.name.value });
+  e.target.reset();
+});
+
+$('teamAddAll').addEventListener('click', () => api('POST', 'teams/pool', { userIds: users.map((u) => u.id) }));
+$('teamClear').addEventListener('click', () => {
+  if (confirm('Alle Teilnehmer entfernen?')) api('POST', 'teams/clear');
+});
+$('teamReset').addEventListener('click', () => api('POST', 'teams/reset'));
+
+$('view-teams').addEventListener('click', (e) => {
+  const add = e.target.closest('[data-team-add]');
+  const remove = e.target.closest('[data-team-remove]');
+  if (add) api('POST', 'teams/pool', { userIds: [add.dataset.teamAdd] });
+  if (remove) api('DELETE', 'teams/pool/' + remove.dataset.teamRemove);
+});
+
+// Einstellungen sofort speichern, damit auch Nutzer sie im Dashboard sehen.
+$('teamForm').addEventListener('change', (e) => {
+  const f = $('teamForm').elements;
+  api('PUT', 'teams', { teamCount: Number(f.teamCount.value), balanced: f.balanced.checked, usersCanGenerate: f.usersCanGenerate.checked });
+  e.target.blur();
+});
+
+$('teamForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const f = e.target.elements;
+  const res = await fetch('/api/teams/generate', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...authHeaders() },
+    body: JSON.stringify({ teamCount: Number(f.teamCount.value), balanced: f.balanced.checked }),
+  });
+  const data = await res.json().catch(() => ({}));
+  $('teamError').textContent = res.ok ? '' : data.error || 'Fehler';
+});
 
 // Beim Laden: gespeichertes Passwort oder Admin-Nutzer-Cookie prüfen.
 fetch('/api/admin/login', { method: 'POST', headers: authHeaders() })
