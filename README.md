@@ -12,13 +12,23 @@ Ein schlankes Dashboard für LAN-Partys, gebaut für den Raspberry Pi. Ein Bilds
 Im Admin-Bereich gibt es den Reiter **Nutzer**. Dort legst du Nutzer mit Nutzernamen an und schickst ihnen ihren persönlichen Link (`/login?token=…`). Wer den Link öffnet, ist auf diesem Gerät angemeldet und sieht im Dashboard seine Features.
 
 - **Admin**: Nutzer mit Admin-Haken kommen ohne Passwort in `/admin`. Das Master-Passwort aus `ADMIN_PASSWORD` funktioniert weiterhin.
-- **Features**: Pro Nutzer schaltest du Glücksrad, Abstimmungen, Essensbestellung und Wishlist frei. Essensbestellung und Wishlist sind noch Platzhalter.
+- **Features**: Pro Nutzer schaltest du Glücksrad, Abstimmungen, Musik, Essensbestellung und Wishlist frei. Essensbestellung und Wishlist sind noch Platzhalter.
 
 ## Abstimmungen
 
 - Im Admin-Reiter **Abstimmungen** legst du Umfragen mit Frage und Antworten an, beendest sie, öffnest sie wieder, setzt Stimmen zurück oder löschst sie.
 - Nutzer mit dem Feature „Abstimmungen“ stimmen direkt im Dashboard ab: eine Stimme pro Umfrage, änderbar solange sie läuft. Nochmal auf die eigene Antwort klicken zieht die Stimme zurück.
 - Die TV-Anzeige zeigt alle laufenden Umfragen und das Ergebnis der zuletzt beendeten. Wer wofür gestimmt hat, ist nicht öffentlich.
+
+## Musik (Spotify)
+
+Alle steuern gemeinsam die Party-Musik. Gespielt wird über einen Spotify-Account mit **Premium** (z.B. auf dem Musik-PC), der Pi steuert ihn nur fern.
+
+- **Einrichten** im Admin-Reiter **Musik**: Im [Spotify Developer Dashboard](https://developer.spotify.com/dashboard) eine App anlegen, die angezeigte Redirect URI eintragen, *Web API* anhaken und die Client ID im Admin eintragen. Ein Client Secret ist nicht nötig. Dann „Mit Spotify verbinden“: Nach der Anmeldung zeigt der neue Tab eine Fehlerseite, deren komplette Adresse du in das Feld im Admin kopierst. (Spotify erlaubt ohne HTTPS nur `127.0.0.1` als Rücksprung, deshalb dieser Umweg.)
+- Nutzer mit dem Feature „Musik (Spotify)“ suchen im Dashboard Songs und wünschen sie sich (landen in der Spotify-Warteschlange, mit Namen), höchstens 3 offene Wünsche pro Nutzer. Fürs Überspringen braucht es 3 Stimmen. Beides ist im Admin einstellbar.
+- Pause, Vor, Zurück, Lautstärke und das Abspielgerät steuern Admins. Auf Wunsch dürfen das auch die Nutzer.
+- Die TV-Anzeige zeigt in der Kopfzeile, was gerade läuft, und blendet neue Wünsche ein.
+- Die Spotify-Zugangsdaten liegen in `data/spotify.json`, getrennt von `state.json`. Alternativ lässt sich die Client ID per `SPOTIFY_CLIENT_ID` setzen.
 
 ## Glücksrad
 
@@ -95,6 +105,8 @@ Bei der Docker-Variante den Pfad zu `kiosk.sh` entsprechend anpassen. Unter Wayl
 | `PORT` | `8080` | HTTP-Port |
 | `DATA_DIR` | `./data` | Ordner für `state.json` |
 | `SERVER_CHECK_INTERVAL` | `30` | Sekunden zwischen den Server-Checks |
+| `SPOTIFY_CLIENT_ID` | – | Client ID der Spotify-App (sonst im Admin eintragen) |
+| `SPOTIFY_REDIRECT_URI` | `http://127.0.0.1:<PORT>/api/spotify/callback` | Rücksprung-Adresse, muss in der Spotify-App eingetragen sein |
 
 ## Hinweise
 

@@ -13,6 +13,7 @@ try { password = sessionStorage.getItem('lanparty-admin'); } catch {}
 const auth = password ? { Authorization: 'Bearer ' + password } : {};
 
 const wheel = createWheel($('wheel'), renderWheelStatus);
+const music = createMusic({ auth });
 
 function renderWheelStatus({ spinning, spin, lastResult }) {
   const el = $('wheelStatus');
@@ -68,6 +69,8 @@ function render(state) {
 
   renderPolls(state.polls);
   if (me && hasFeature('abstimmungen')) loadMyVotes();
+
+  music.render(state.music);
 
   $('servers').innerHTML = state.servers.length
     ? state.servers.map((srv) => {
@@ -168,7 +171,8 @@ function enterUserMode(user) {
     });
   }
   // Das Glücksrad ist schon im Dashboard; die übrigen Features sind Platzhalter.
-  const others = me.features.filter((f) => f.enabled && f.key !== 'gluecksrad' && f.key !== 'abstimmungen');
+  music.enterUserMode(me, hasFeature('musik'));
+  const others = me.features.filter((f) => f.enabled && !['gluecksrad', 'abstimmungen', 'musik'].includes(f.key));
   $('featuresCard').hidden = !others.length;
   document.body.classList.toggle('no-features', !others.length);
   $('features').innerHTML = others.map((f) => `<li><strong>${esc(f.label)}</strong><small>kommt bald</small></li>`).join('');

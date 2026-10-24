@@ -8,6 +8,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const net = require('node:net');
 const crypto = require('node:crypto');
+const { createSpotify } = require('./spotify');
 
 const PORT = Number(process.env.PORT) || 8080;
 const HOST = process.env.HOST || '0.0.0.0';
@@ -46,6 +47,7 @@ const FEATURES = [
   { key: 'abstimmungen', label: 'Abstimmungen' },
   { key: 'essen', label: 'Essensbestellung' },
   { key: 'wishlist', label: 'Wishlist' },
+  { key: 'musik', label: 'Musik (Spotify)' },
 ];
 const FEATURE_KEYS = new Set(FEATURES.map((f) => f.key));
 const SESSION_COOKIE = 'lp_session';
@@ -114,6 +116,11 @@ function saveNow() {
 }
 
 // ---------------------------------------------------------------------------
+// Musik über Spotify (Details in spotify.js)
+
+const spotify = createSpotify({ dataDir: DATA_DIR, port: PORT, onChange: () => broadcast() });
+
+// ---------------------------------------------------------------------------
 // Erreichbarkeit der Spieleserver (TCP-Verbindungstest)
 
 const serverStatus = {};
@@ -161,6 +168,7 @@ function publicState() {
     players: state.players,
     polls: state.polls.map(pollView),
     servers: state.servers.map((s) => ({ ...s, status: serverStatus[s.id] || null })),
+    music: spotify.publicView(),
   };
 }
 
@@ -366,6 +374,8 @@ async function handleApi(req, res, pathname) {
   }
 
   if (pathname.startsWith('/api/wheel/')) return handleWheel(req, res, method, pathname.split('/').slice(3));
+  if (pathname.startsWith('/api/music/')) return handleMusic(req, res, method, pathname.split('/').slice(3));
+  if (method === 'GET' && pathname === '/api/spotify/callback') return handleSpotifyCallback(req, res);
 
   if (!pathname.startsWith('/api/admin/')) return sendJson(res, 404, { error: 'Nicht gefunden' });
   if (!isAdmin(req)) return sendJson(res, 401, { error: 'Falsches Passwort' });
@@ -383,6 +393,7 @@ async function handleApi(req, res, pathname) {
   if (parts[0] === 'users') return handleUsers(req, res, method, parts);
   if (parts[0] === 'wheel') return handleWheelAdmin(req, res, method, parts);
   if (parts[0] === 'polls') return handlePollsAdmin(req, res, method, parts);
+  if (parts[0] === 'music') return handleMusicAdmin(req, res, method, parts);
 
   const fields = COLLECTIONS[parts[0]];
   if (!fields) return sendJson(res, 404, { error: 'Nicht gefunden' });
@@ -476,6 +487,7 @@ async function handleUsers(req, res, method, parts) {
     state.users.splice(state.users.indexOf(user), 1);
     state.wheel.spinnerIds = state.wheel.spinnerIds.filter((uid) => uid !== user.id);
     for (const poll of state.polls) delete poll.votes[user.id];
+    spotify.forgetUser(user.id);
     scheduleSave();
     return sendJson(res, 200, { ok: true });
   }
@@ -674,6 +686,85 @@ async function handlePollsAdmin(req, res, method, parts) {
   }
 
   return sendJson(res, 405, { error: 'Methode nicht erlaubt' });
+}
+
+// ---------------------------------------------------------------------------
+// Musik
+
+async function handleMusic(req, res, method, parts) {
+  const user = viewer(req);
+  if (!user) return sendJson(res, 401, { error: 'Nicht angemeldet' });
+  if (!user.isAdmin && !user.features.musik) return sendJson(res, 403, { error: 'Kein Zugriff auf die Musik' });
+
+  if (method === 'GET' && parts[0] === 'search') {
+    const q = new URL(req.url, 'http://localhost').searchParams.get('q');
+    return sendJson(res, 200, { tracks: await spotify.search(q) });
+  }
+
+  if (method === 'POST' && parts[0] === 'queue') {
+    const body = await readBody(req);
+    await spotify.wish(user, body.uri, body.name);
+    return sendJson(res, 200, { ok: true });
+  }
+
+  if (method === 'POST' && parts[0] === 'skip') {
+    await spotify.voteSkip(user);
+    return sendJson(res, 200, { ok: true });
+  }
+
+  // Abspielen, Pause, Vor, Zurück, Lautstärke: Admins immer, Nutzer nur, wenn freigegeben.
+  if (method === 'POST' && parts[0] === 'control') {
+    if (!user.isAdmin && !spotify.adminView().usersCanControl) return sendJson(res, 403, { error: 'Nur der Admin darf die Wiedergabe steuern' });
+    const body = await readBody(req);
+    await spotify.control(String(body.action), body.value);
+    return sendJson(res, 200, { ok: true });
+  }
+
+  return sendJson(res, 404, { error: 'Nicht gefunden' });
+}
+
+async function handleMusicAdmin(req, res, method, parts) {
+  if (method === 'GET' && parts.length === 1) return sendJson(res, 200, spotify.adminView());
+  if (method === 'PUT' && parts.length === 1) return sendJson(res, 200, spotify.updateConfig(await readBody(req)));
+  if (method === 'POST' && parts[1] === 'connect') return sendJson(res, 200, { url: spotify.startAuth() });
+
+  // Die Rücksprung-Adresse von Spotify, aus der Adresszeile kopiert.
+  if (method === 'POST' && parts[1] === 'code') {
+    let params;
+    try {
+      params = new URL(String((await readBody(req)).url || '').trim()).searchParams;
+    } catch {
+      return sendJson(res, 400, { error: 'Das ist keine vollständige Adresse' });
+    }
+    await spotify.finishAuth(params);
+    return sendJson(res, 200, spotify.adminView());
+  }
+
+  if (method === 'POST' && parts[1] === 'disconnect') {
+    spotify.disconnect();
+    return sendJson(res, 200, spotify.adminView());
+  }
+
+  if (method === 'GET' && parts[1] === 'devices') return sendJson(res, 200, { devices: await spotify.devices() });
+
+  if (method === 'PUT' && parts[1] === 'device') {
+    await spotify.transfer((await readBody(req)).id);
+    return sendJson(res, 200, { ok: true });
+  }
+
+  return sendJson(res, 404, { error: 'Nicht gefunden' });
+}
+
+// Spotify leitet hierher zurück, wenn der Browser den Pi unter der
+// eingetragenen Redirect-URI erreicht (z.B. der Kiosk-Browser am Pi selbst).
+async function handleSpotifyCallback(req, res) {
+  try {
+    await spotify.finishAuth(new URL(req.url, 'http://localhost').searchParams);
+    redirect(res, '/admin#musik');
+  } catch (err) {
+    res.writeHead(err.status || 500, { 'Content-Type': 'text/html; charset=utf-8' });
+    res.end(`<!doctype html><meta charset="utf-8"><title>Spotify</title><body style="font-family:system-ui;background:#0b0f1a;color:#e8ecf8;padding:2rem"><h1>Spotify-Verbindung fehlgeschlagen</h1><p>${String(err.message).replace(/[&<>"']/g, '')}</p><p><a style="color:#38e1ff" href="/admin">Zurück zum Admin-Bereich</a></p></body>`);
+  }
 }
 
 function handleLogin(req, res, url) {

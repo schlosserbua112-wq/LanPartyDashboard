@@ -63,6 +63,7 @@ function render(next) {
   }
   renderWheelAdmin();
   renderPollsAdmin();
+  if (window.renderMusicAdmin) renderMusicAdmin(state.music);
   // Einstellungen nur befüllen, wenn gerade niemand darin tippt.
   const form = $('settingsForm');
   if (!form.contains(document.activeElement)) {
@@ -150,6 +151,7 @@ $('tabs').addEventListener('click', (e) => {
   for (const b of $('tabs').querySelectorAll('button')) b.classList.toggle('active', b === btn);
   for (const v of document.querySelectorAll('.view')) v.hidden = v.id !== 'view-' + btn.dataset.view;
   if (btn.dataset.view === 'users') loadUsers();
+  if (btn.dataset.view === 'musik') loadMusicConfig();
   if (btn.dataset.view === 'wheel') {
     loadUsers();
     if (state) wheel.update(state.wheel);
